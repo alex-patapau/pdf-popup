@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>PDF Viewer</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.css">
     <style>
@@ -16,6 +16,7 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
+            touch-action: manipulation;
         }
 
         h1 {
@@ -55,6 +56,7 @@
             display: flex;
             flex-direction: column;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            touch-action: pan-y pinch-zoom;
         }
 
         .pdf-header {
@@ -95,6 +97,7 @@
             overflow: auto;
             position: relative;
             padding: 0;
+            touch-action: pan-y pinch-zoom;
         }
 
         .pdf-pages-container {
@@ -102,6 +105,7 @@
             flex-direction: column;
             align-items: center;
             padding: 20px;
+            touch-action: pan-y pinch-zoom;
         }
 
         .pdf-page {
@@ -109,6 +113,7 @@
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             max-width: 100%;
             display: block;
+            touch-action: pan-y pinch-zoom;
         }
 
         .pdf-controls {
@@ -200,7 +205,6 @@
             color: #999;
             font-size: 14px;
             margin-bottom: 20px;
-            /* Размер будет установлен динамически */
         }
 
         .render-indicator {
@@ -214,6 +218,30 @@
             font-size: 12px;
             z-index: 10000;
             display: none;
+        }
+
+        .mobile-zoom-controls {
+            display: none;
+            position: fixed;
+            bottom: 100px;
+            right: 20px;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .mobile-zoom-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #4a6ee0;
+            color: white;
+            border: none;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
         }
 
         @media (max-width: 768px) {
@@ -231,6 +259,14 @@
                 order: -1;
                 width: 100%;
                 justify-content: center;
+            }
+            
+            .mobile-zoom-controls {
+                display: flex;
+            }
+            
+            .zoom-controls:not(.mobile-zoom-controls) {
+                display: none;
             }
         }
     </style>
@@ -280,6 +316,11 @@
                                 <span class="page-info">Страница <span id="current-page">1</span> из <span id="total-pages">0</span></span>
                                 <button class="nav-btn" id="next-page">Вперед</button>
                             </div>
+                        </div>
+                        <div class="mobile-zoom-controls">
+                            <button class="mobile-zoom-btn" data-action="zoom-in">+</button>
+                            <button class="mobile-zoom-btn" data-action="zoom-out">-</button>
+                            <button class="mobile-zoom-btn" data-action="reset-zoom">↺</button>
                         </div>
                     </div>
                 `;
@@ -332,7 +373,12 @@
             let lastVisiblePages = new Set();
             let maxConcurrentRenders = 2;
             let renderPriority = new Map();
-            let pageSizes = new Map(); // Храним размеры страниц для плейсхолдеров
+            let pageSizes = new Map();
+
+            // Переменные для жестов масштабирования
+            let initialDistance = null;
+            let initialScale = 1.0;
+            let isPinching = false;
 
             // Функция для очистки состояния PDF просмотрщика
             function cleanupPdfViewer() {
@@ -388,6 +434,9 @@
                     
                     // Настраиваем Intersection Observer для ленивой загрузки
                     setupIntersectionObserver();
+                    
+                    // Настраиваем обработчики жестов для мобильных устройств
+                    setupGestureHandlers();
                     
                 } catch (error) {
                     console.error('Ошибка загрузки PDF:', error);
@@ -694,24 +743,30 @@
                     }
                 });
 
-                // Масштабирование
-                document.querySelector('[data-action="zoom-out"]').addEventListener('click', () => {
-                    if (scale > 0.5) {
-                        scale = Math.max(0.5, scale - 0.1);
-                        updateZoom();
-                    }
+                // Масштабирование для десктопа
+                document.querySelectorAll('[data-action="zoom-out"]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        if (scale > 0.5) {
+                            scale = Math.max(0.5, scale - 0.1);
+                            updateZoom();
+                        }
+                    });
                 });
                 
-                document.querySelector('[data-action="zoom-in"]').addEventListener('click', () => {
-                    if (scale < 3.0) {
-                        scale = Math.min(3.0, scale + 0.1);
-                        updateZoom();
-                    }
+                document.querySelectorAll('[data-action="zoom-in"]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        if (scale < 3.0) {
+                            scale = Math.min(3.0, scale + 0.1);
+                            updateZoom();
+                        }
+                    });
                 });
                 
-                document.querySelector('[data-action="reset-zoom"]').addEventListener('click', () => {
-                    scale = 1.0;
-                    updateZoom();
+                document.querySelectorAll('[data-action="reset-zoom"]').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        scale = 1.0;
+                        updateZoom();
+                    });
                 });
 
                 // Двойной тап для сброса зума
@@ -733,6 +788,58 @@
 
                 // Свайпы для мобильных устройств
                 setupSwipeGestures();
+            }
+
+            // Настройка обработчиков жестов для мобильных устройств
+            function setupGestureHandlers() {
+                const pdfContent = document.querySelector('.pdf-content');
+                
+                // Обработчики для pinch-to-zoom
+                pdfContent.addEventListener('touchstart', handleTouchStart, { passive: false });
+                pdfContent.addEventListener('touchmove', handleTouchMove, { passive: false });
+                pdfContent.addEventListener('touchend', handleTouchEnd, { passive: false });
+            }
+
+            // Обработчики для жеста pinch-to-zoom
+            function handleTouchStart(e) {
+                if (e.touches.length === 2) {
+                    isPinching = true;
+                    initialDistance = getDistance(e.touches[0], e.touches[1]);
+                    initialScale = scale;
+                    e.preventDefault();
+                }
+            }
+
+            function handleTouchMove(e) {
+                if (e.touches.length === 2 && isPinching) {
+                    const currentDistance = getDistance(e.touches[0], e.touches[1]);
+                    const scaleFactor = currentDistance / initialDistance;
+                    
+                    let newScale = initialScale * scaleFactor;
+                    newScale = Math.max(0.5, Math.min(3.0, newScale));
+                    newScale = Math.round(newScale * 10) / 10; // Округляем до 0.1
+                    
+                    if (newScale !== scale) {
+                        scale = newScale;
+                        updateZoom();
+                    }
+                    
+                    e.preventDefault();
+                }
+            }
+
+            function handleTouchEnd(e) {
+                if (e.touches.length < 2) {
+                    isPinching = false;
+                    initialDistance = null;
+                }
+            }
+
+            // Вспомогательная функция для расчета расстояния между двумя точками
+            function getDistance(touch1, touch2) {
+                const dx = touch1.clientX - touch2.clientX;
+                const dy = touch1.clientY - touch2.clientY;
+                return Math.sqrt(dx * dx + dy * dy);
             }
 
             // Обновление приоритетов рендеринга на основе видимости
