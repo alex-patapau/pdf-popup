@@ -200,6 +200,7 @@
             color: #999;
             font-size: 14px;
             margin-bottom: 20px;
+            /* Размер будет установлен динамически */
         }
 
         .render-indicator {
@@ -235,7 +236,6 @@
     </style>
 </head>
 <body>
-    <!-- https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf -->
     <h1>PDF Viewer Demo</h1>
     <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
         Открыть PDF
@@ -330,8 +330,9 @@
             let renderQueue = new Set();
             let activeRenders = new Map();
             let lastVisiblePages = new Set();
-            let maxConcurrentRenders = 2; // Ограничиваем одновременные рендеры для слабых устройств
-            let renderPriority = new Map(); // Приоритет рендеринга страниц
+            let maxConcurrentRenders = 2;
+            let renderPriority = new Map();
+            let pageSizes = new Map(); // Храним размеры страниц для плейсхолдеров
 
             // Функция для очистки состояния PDF просмотрщика
             function cleanupPdfViewer() {
@@ -348,6 +349,7 @@
                 renderQueue.clear();
                 lastVisiblePages.clear();
                 renderPriority.clear();
+                pageSizes.clear();
                 
                 pdfDoc = null;
                 currentPage = 1;
@@ -372,6 +374,9 @@
                     document.getElementById('total-pages').textContent = pdfDoc.numPages;
                     document.querySelector('.loading').style.display = 'none';
                     
+                    // Предзагружаем размеры всех страниц для плейсхолдеров
+                    await preloadPageSizes();
+                    
                     // Создаем контейнеры для всех страниц
                     createPageContainers();
                     
@@ -391,6 +396,29 @@
                 }
             }
 
+            // Предзагрузка размеров страниц для правильных плейсхолдеров
+            async function preloadPageSizes() {
+                const promises = [];
+                
+                for (let i = 1; i <= pdfDoc.numPages; i++) {
+                    promises.push(
+                        pdfDoc.getPage(i).then(page => {
+                            const viewport = page.getViewport({ scale: 1.0 });
+                            pageSizes.set(i, {
+                                width: viewport.width,
+                                height: viewport.height
+                            });
+                        }).catch(error => {
+                            console.error(`Ошибка загрузки размера страницы ${i}:`, error);
+                            // Используем размер по умолчанию для A4
+                            pageSizes.set(i, { width: 595, height: 842 });
+                        })
+                    );
+                }
+                
+                await Promise.all(promises);
+            }
+
             function createPageContainers() {
                 const container = document.getElementById('pdf-pages-container');
                 container.innerHTML = '';
@@ -401,23 +429,38 @@
                     pageDiv.id = `page-${i}`;
                     pageDiv.dataset.pageNumber = i;
                     
-                    // Создаем плейсхолдер, пока страница не загружена
+                    // Создаем плейсхолдер с правильным размером
                     const placeholder = document.createElement('div');
                     placeholder.className = 'page-placeholder';
-                    placeholder.style.width = '800px';
-                    placeholder.style.height = '1000px';
-                    placeholder.textContent = `Страница ${i} загружается...`;
                     placeholder.id = `placeholder-${i}`;
+                    
+                    // Устанавливаем размер плейсхолдера на основе реального размера страницы
+                    const pageSize = pageSizes.get(i) || { width: 595, height: 842 };
+                    placeholder.style.width = `${pageSize.width * scale}px`;
+                    placeholder.style.height = `${pageSize.height * scale}px`;
+                    placeholder.textContent = `Страница ${i} загружается...`;
                     
                     const canvas = document.createElement('canvas');
                     canvas.className = 'pdf-page';
-                    canvas.style.display = 'none'; // Скрываем canvas до полной загрузки
+                    canvas.style.display = 'none';
                     canvas.dataset.originalScale = scale;
                     
                     pageDiv.appendChild(placeholder);
                     pageDiv.appendChild(canvas);
                     
                     container.appendChild(pageDiv);
+                }
+            }
+
+            // Обновление размеров плейсхолдеров при изменении масштаба
+            function updatePlaceholderSizes() {
+                for (let i = 1; i <= pdfDoc.numPages; i++) {
+                    const placeholder = document.getElementById(`placeholder-${i}`);
+                    if (placeholder) {
+                        const pageSize = pageSizes.get(i) || { width: 595, height: 842 };
+                        placeholder.style.width = `${pageSize.width * scale}px`;
+                        placeholder.style.height = `${pageSize.height * scale}px`;
+                    }
                 }
             }
 
@@ -785,6 +828,9 @@
                 activeRenders.clear();
                 renderQueue.clear();
                 renderPriority.clear();
+                
+                // Обновляем размеры плейсхолдеров
+                updatePlaceholderSizes();
                 
                 // Очищаем кэш и перерисовываем все видимые страницы с новым масштабом
                 canvasCache = {};
