@@ -230,6 +230,43 @@
             display: none;
         }
 
+        .mobile-zoom-controls {
+            display: none;
+            position: fixed;
+            bottom: 100px;
+            right: 20px;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .mobile-zoom-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #4a6ee0;
+            color: white;
+            border: none;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .pan-indicator {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 10000;
+            display: none;
+        }
+
         /* Мобильные стили - жесты и трансформация */
         @media (max-width: 768px) {
             body {
@@ -275,49 +312,8 @@
             }
             
             .mobile-zoom-controls {
-                display: flex;
+                display: flex !important;
             }
-            
-            .zoom-controls:not(.mobile-zoom-controls) {
-                display: none;
-            }
-        }
-
-        .mobile-zoom-controls {
-            display: none;
-            position: fixed;
-            bottom: 100px;
-            right: 20px;
-            flex-direction: column;
-            gap: 10px;
-            z-index: 1000;
-        }
-
-        .mobile-zoom-btn {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: #4a6ee0;
-            color: white;
-            border: none;
-            font-size: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }
-
-        .pan-indicator {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.7);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-size: 12px;
-            z-index: 10000;
-            display: none;
         }
     </style>
 </head>
@@ -328,8 +324,7 @@
     </button>
     
     <div class="test-info">
-        <p><strong>Протестируйте наш PDF-просмотрщик!</strong> Функционал проверен на Android-смартфонах и десктопах — работает масштабирование, панорамирование и плавная навигация.</p>
-        <p>Нужны тестировщики для проверки работы на iPhone и помощи в улучшении совместимости!</p>
+        <p><strong>Протестируйте PDF-просмотрщик!</strong> Функционал проверен на Android-смартфонах и десктопах — работает масштабирование, панорамирование и плавная навигация.</p>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>
@@ -352,13 +347,13 @@
             });
 
             function openPdfViewer(pdfUrl) {
-                const mobileZoomControls = isMobileDevice() ? `
+                const mobileZoomControls = `
                     <div class="mobile-zoom-controls">
                         <button class="mobile-zoom-btn" data-action="zoom-in">+</button>
                         <button class="mobile-zoom-btn" data-action="zoom-out">-</button>
                         <button class="mobile-zoom-btn" data-action="reset-zoom">↺</button>
                     </div>
-                ` : '';
+                `;
 
                 const modalContent = `
                     <div class="pdf-viewer">
@@ -386,7 +381,7 @@
                                 <button class="nav-btn" id="next-page">Вперед</button>
                             </div>
                         </div>
-                        ${mobileZoomControls}
+                        ${isMobileDevice() ? mobileZoomControls : ''}
                     </div>
                 `;
 
@@ -395,6 +390,8 @@
                     type: 'html'
                 }], {
                     closeButton: false,
+                    dragToClose: false, // Отключаем закрытие перетаскиванием
+                    swipeToClose: false, // Отключаем закрытие свайпом
                     on: {
                         // Закрытие по клику на фон
                         click: (fancybox, event) => {
@@ -582,7 +579,7 @@
                 }
             }
 
-            // Обновление размеров плейсхолдеров при изменении масштаба
+            // Обновление размеров плейсхолдеров при изменением масштаба
             function updatePlaceholderSizes() {
                 for (let i = 1; i <= pdfDoc.numPages; i++) {
                     const placeholder = document.getElementById(`placeholder-${i}`);
@@ -824,7 +821,7 @@
                     }
                 });
 
-                // Масштабирование
+                // Масштабирование для десктопа
                 document.querySelectorAll('[data-action="zoom-out"]').forEach(btn => {
                     btn.addEventListener('click', () => {
                         if (scale > 0.1) {
