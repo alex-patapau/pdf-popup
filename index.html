@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Viewer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .open-pdf-btn {
+            background-color: #4a6ee0;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        .open-pdf-btn:hover {
+            background-color: #3a5ec0;
+        }
+
+        .fancybox__container {
+            z-index: 9999;
+        }
+
+        .fancybox__backdrop {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .pdf-viewer {
+            width: 90vw;
+            height: 90vh;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .pdf-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: #f0f0f0;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .pdf-title {
+            font-weight: bold;
+            color: #333;
+            margin: 0;
+        }
+
+        .pdf-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #555;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+
+        .pdf-close:hover {
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+
+        .pdf-content {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+            padding: 0;
+        }
+
+        .pdf-pages-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .pdf-page {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            max-width: 100%;
+            display: block;
+        }
+
+        .pdf-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: #f0f0f0;
+            border-top: 1px solid #ddd;
+        }
+
+        .nav-btn {
+            background-color: #4a6ee0;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .nav-btn:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
+        }
+
+        .page-info {
+            font-size: 14px;
+            color: #555;
+        }
+
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .zoom-btn {
+            background: none;
+            border: 1px solid #ddd;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .zoom-btn:hover {
+            background-color: #e9e9e9;
+        }
+
+        .zoom-indicator {
+            font-size: 14px;
+            color: #555;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 16px;
+            color: #555;
+            background: white;
+            padding: 20px;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .page-loading {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.8);
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .page-placeholder {
+            background: #f9f9f9;
+            border: 2px dashed #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .render-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 10000;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .pdf-viewer {
+                width: 95vw;
+                height: 95vh;
+            }
+            
+            .pdf-controls {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            .zoom-controls {
+                order: -1;
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- https://raw.githubusercontent.com/mozilla/pdf.js/ba2edeae/web/compressed.tracemonkey-pldi-09.pdf -->
+    <h1>PDF Viewer Demo</h1>
+    <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
+        Открыть PDF
+    </button>
+
+    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Устанавливаем путь к worker'у PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const openPdfBtn = document.querySelector('.open-pdf-btn');
+            
+            openPdfBtn.addEventListener('click', function() {
+                const pdfUrl = this.getAttribute('data-pdf-url');
+                openPdfViewer(pdfUrl);
+            });
+
+            function openPdfViewer(pdfUrl) {
+                const modalContent = `
+                    <div class="pdf-viewer">
+                        <div class="pdf-header">
+                            <h2 class="pdf-title">PDF Просмотрщик</h2>
+                            <button class="pdf-close">×</button>
+                        </div>
+                        <div class="pdf-content">
+                            <div class="loading">Загрузка PDF...</div>
+                            <div class="pdf-pages-container" id="pdf-pages-container"></div>
+                            <div class="page-loading" id="page-loading">Загрузка страницы...</div>
+                            <div class="render-indicator" id="render-indicator">Рендеринг...</div>
+                        </div>
+                        <div class="pdf-controls">
+                            <div class="zoom-controls">
+                                <button class="zoom-btn" data-action="zoom-out">-</button>
+                                <span class="zoom-indicator">x1.0</span>
+                                <button class="zoom-btn" data-action="zoom-in">+</button>
+                                <button class="zoom-btn" data-action="reset-zoom">Сброс</button>
+                            </div>
+                            <div class="page-nav">
+                                <button class="nav-btn" id="prev-page" disabled>Назад</button>
+                                <span class="page-info">Страница <span id="current-page">1</span> из <span id="total-pages">0</span></span>
+                                <button class="nav-btn" id="next-page">Вперед</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                Fancybox.show([{
+                    src: modalContent,
+                    type: 'html'
+                }], {
+                    closeButton: false,
+                    on: {
+                        // Закрытие по клику на фон
+                        click: (fancybox, event) => {
+                            if (!event.target.closest('.pdf-viewer')) {
+                                Fancybox.close();
+                                cleanupPdfViewer();
+                            }
+                        },
+                        // Закрытие по клавише Esc
+                        keydown: (fancybox, event) => {
+                            if (event.key === 'Escape') {
+                                Fancybox.close();
+                                cleanupPdfViewer();
+                            }
+                        },
+                        // Очистка при закрытии fancybox
+                        destroy: () => {
+                            cleanupPdfViewer();
+                        }
+                    }
+                });
+
+                // Даем время для отображения модального окна перед загрузкой PDF
+                setTimeout(() => {
+                    loadPdf(pdfUrl);
+                }, 100);
+            }
+
+            // Переменные для управления PDF
+            let pdfDoc = null;
+            let currentPage = 1;
+            let scale = 1.0;
+            let canvasCache = {};
+            let renderedPages = new Set();
+            let observer = null;
+            let isZooming = false;
+            
+            // Улучшенная система управления очередью
+            let renderQueue = new Set();
+            let activeRenders = new Map();
+            let lastVisiblePages = new Set();
+            let maxConcurrentRenders = 2; // Ограничиваем одновременные рендеры для слабых устройств
+            let renderPriority = new Map(); // Приоритет рендеринга страниц
+
+            // Функция для очистки состояния PDF просмотрщика
+            function cleanupPdfViewer() {
+                if (observer) {
+                    observer.disconnect();
+                    observer = null;
+                }
+                
+                // Отменяем все активные рендеры
+                activeRenders.forEach((controller, pageNum) => {
+                    controller.abort();
+                });
+                activeRenders.clear();
+                renderQueue.clear();
+                lastVisiblePages.clear();
+                renderPriority.clear();
+                
+                pdfDoc = null;
+                currentPage = 1;
+                scale = 1.0;
+                canvasCache = {};
+                renderedPages.clear();
+                isZooming = false;
+            }
+
+            async function loadPdf(url) {
+                try {
+                    console.log('Начинаем загрузку PDF:', url);
+                    
+                    // Очищаем предыдущее состояние
+                    cleanupPdfViewer();
+                    
+                    const loadingTask = pdfjsLib.getDocument(url);
+                    pdfDoc = await loadingTask.promise;
+                    
+                    console.log('PDF загружен, всего страниц:', pdfDoc.numPages);
+                    
+                    document.getElementById('total-pages').textContent = pdfDoc.numPages;
+                    document.querySelector('.loading').style.display = 'none';
+                    
+                    // Создаем контейнеры для всех страниц
+                    createPageContainers();
+                    
+                    // Отображаем первую страницу с гарантированным рендерингом
+                    await renderPageWithGuarantee(1);
+                    
+                    // Настраиваем обработчики
+                    setupEventHandlers();
+                    
+                    // Настраиваем Intersection Observer для ленивой загрузки
+                    setupIntersectionObserver();
+                    
+                } catch (error) {
+                    console.error('Ошибка загрузки PDF:', error);
+                    document.querySelector('.loading').innerHTML = 
+                        '<div class="error">Ошибка загрузки PDF. Проверьте консоль для подробностей.</div>';
+                }
+            }
+
+            function createPageContainers() {
+                const container = document.getElementById('pdf-pages-container');
+                container.innerHTML = '';
+                
+                for (let i = 1; i <= pdfDoc.numPages; i++) {
+                    const pageDiv = document.createElement('div');
+                    pageDiv.className = 'pdf-page-container';
+                    pageDiv.id = `page-${i}`;
+                    pageDiv.dataset.pageNumber = i;
+                    
+                    // Создаем плейсхолдер, пока страница не загружена
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'page-placeholder';
+                    placeholder.style.width = '800px';
+                    placeholder.style.height = '1000px';
+                    placeholder.textContent = `Страница ${i} загружается...`;
+                    placeholder.id = `placeholder-${i}`;
+                    
+                    const canvas = document.createElement('canvas');
+                    canvas.className = 'pdf-page';
+                    canvas.style.display = 'none'; // Скрываем canvas до полной загрузки
+                    canvas.dataset.originalScale = scale;
+                    
+                    pageDiv.appendChild(placeholder);
+                    pageDiv.appendChild(canvas);
+                    
+                    container.appendChild(pageDiv);
+                }
+            }
+
+            // Функция гарантированного рендеринга с прелоадером
+            async function renderPageWithGuarantee(pageNum) {
+                if (!pdfDoc) return;
+                
+                // Показываем плейсхолдер
+                const placeholder = document.getElementById(`placeholder-${pageNum}`);
+                const canvas = document.querySelector(`#page-${pageNum} canvas`);
+                
+                if (placeholder) {
+                    placeholder.style.display = 'flex';
+                }
+                if (canvas) {
+                    canvas.style.display = 'none';
+                }
+                
+                // Устанавливаем высокий приоритет для этой страницы
+                renderPriority.set(pageNum, 10);
+                
+                try {
+                    await renderPage(pageNum, true);
+                    
+                    // После успешного рендеринга скрываем плейсхолдер и показываем canvas
+                    if (placeholder) {
+                        placeholder.style.display = 'none';
+                    }
+                    if (canvas) {
+                        canvas.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error(`Ошибка гарантированного рендеринга страницы ${pageNum}:`, error);
+                    if (placeholder) {
+                        placeholder.textContent = `Ошибка загрузки страницы ${pageNum}`;
+                    }
+                }
+            }
+
+            async function renderPage(pageNum, isHighPriority = false) {
+                if (!pdfDoc || renderedPages.has(pageNum)) return;
+                
+                // Если страница уже в процессе рендеринга, не добавляем ее снова
+                if (activeRenders.has(pageNum)) return;
+                
+                // Устанавливаем приоритет
+                if (isHighPriority) {
+                    renderPriority.set(pageNum, 10);
+                } else if (!renderPriority.has(pageNum)) {
+                    // Базовый приоритет на основе расстояния от текущей страницы
+                    const distance = Math.abs(pageNum - currentPage);
+                    renderPriority.set(pageNum, Math.max(1, 10 - distance));
+                }
+                
+                // Добавляем в очередь рендеринга
+                renderQueue.add(pageNum);
+                
+                // Обрабатываем очередь
+                processRenderQueue();
+            }
+
+            // Функция для обработки очереди рендеринга с приоритетами
+            function processRenderQueue() {
+                // Если уже достигнут лимит одновременных рендеров, выходим
+                if (activeRenders.size >= maxConcurrentRenders) return;
+                
+                // Если очередь пуста, выходим
+                if (renderQueue.size === 0) return;
+                
+                // Сортируем очередь по приоритету (от высокого к низкому)
+                const sortedQueue = Array.from(renderQueue).sort((a, b) => {
+                    return (renderPriority.get(b) || 0) - (renderPriority.get(a) || 0);
+                });
+                
+                // Берем страницу с наивысшим приоритетом
+                const pageNum = sortedQueue[0];
+                renderQueue.delete(pageNum);
+                
+                // Запускаем рендеринг
+                executeRender(pageNum);
+            }
+
+            async function executeRender(pageNum) {
+                // Создаем AbortController для возможности отмены рендеринга
+                const controller = new AbortController();
+                activeRenders.set(pageNum, controller);
+                
+                // Показываем индикатор рендеринга для важных страниц
+                if (renderPriority.get(pageNum) >= 5) {
+                    showRenderIndicator(pageNum);
+                }
+                
+                try {
+                    const page = await pdfDoc.getPage(pageNum);
+                    
+                    // Проверяем, не был ли рендер отменен
+                    if (controller.signal.aborted) {
+                        return;
+                    }
+                    
+                    const canvas = document.querySelector(`#page-${pageNum} canvas`);
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Очищаем canvas перед рендерингом
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Устанавливаем размеры canvas
+                    const viewport = page.getViewport({ scale: scale });
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    canvas.dataset.originalScale = scale;
+                    
+                    // Рендерим страницу
+                    const renderContext = {
+                        canvasContext: ctx,
+                        viewport: viewport
+                    };
+                    
+                    await page.render(renderContext).promise;
+                    
+                    // Проверяем, не был ли рендер отменен после завершения
+                    if (controller.signal.aborted) {
+                        return;
+                    }
+                    
+                    // Сохраняем в кэш
+                    canvasCache[pageNum] = canvas;
+                    renderedPages.add(pageNum);
+                    
+                    // Скрываем индикатор рендеринга
+                    hideRenderIndicator();
+                    
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        console.error('Ошибка рендеринга страницы:', error);
+                        hideRenderIndicator();
+                    }
+                } finally {
+                    // Убираем из активных рендеров
+                    activeRenders.delete(pageNum);
+                    
+                    // Запускаем следующий рендер из очереди
+                    processRenderQueue();
+                }
+            }
+
+            function showRenderIndicator(pageNum) {
+                const indicator = document.getElementById('render-indicator');
+                indicator.textContent = `Рендеринг страницы ${pageNum}...`;
+                indicator.style.display = 'block';
+            }
+
+            function hideRenderIndicator() {
+                document.getElementById('render-indicator').style.display = 'none';
+            }
+
+            // Функция для перерисовки страницы с проверкой масштаба
+            async function renderPageWithScaleCheck(pageNum) {
+                const canvas = document.querySelector(`#page-${pageNum} canvas`);
+                if (!canvas) return;
+                
+                // Проверяем, соответствует ли текущий масштаб сохраненному
+                const savedScale = parseFloat(canvas.dataset.originalScale || 0);
+                if (Math.abs(savedScale - scale) > 0.01) {
+                    // Масштаб изменился, перерисовываем страницу
+                    renderedPages.delete(pageNum);
+                    await renderPage(pageNum);
+                }
+            }
+
+            // Функция для отмены рендеров невидимых страниц
+            function cancelNonVisibleRenders() {
+                const visiblePages = getVisiblePages();
+                
+                // Отменяем рендеры страниц, которые больше не видны
+                activeRenders.forEach((controller, pageNum) => {
+                    if (!visiblePages.has(pageNum) && !lastVisiblePages.has(pageNum)) {
+                        controller.abort();
+                        activeRenders.delete(pageNum);
+                        renderQueue.delete(pageNum);
+                        renderPriority.delete(pageNum);
+                    }
+                });
+                
+                // Обновляем последний набор видимых страниц
+                lastVisiblePages = new Set(visiblePages);
+            }
+
+            function showPageLoading(pageNum) {
+                const loadingEl = document.getElementById('page-loading');
+                loadingEl.textContent = `Загрузка страницы ${pageNum}...`;
+                loadingEl.style.display = 'block';
+            }
+
+            function hidePageLoading() {
+                document.getElementById('page-loading').style.display = 'none';
+            }
+
+            function updateNavigation() {
+                if (!pdfDoc) return;
+                
+                document.getElementById('current-page').textContent = currentPage;
+                document.getElementById('total-pages').textContent = pdfDoc.numPages;
+                document.getElementById('prev-page').disabled = currentPage <= 1;
+                document.getElementById('next-page').disabled = currentPage >= pdfDoc.numPages;
+            }
+
+            function setupEventHandlers() {
+                // Кнопка закрытия
+                document.querySelector('.pdf-close').addEventListener('click', () => {
+                    Fancybox.close();
+                    cleanupPdfViewer();
+                });
+
+                // Навигация по кнопкам
+                document.getElementById('prev-page').addEventListener('click', async () => {
+                    if (currentPage > 1) {
+                        currentPage--;
+                        await ensurePageRendered(currentPage);
+                        scrollToPage(currentPage);
+                        updateNavigation();
+                    }
+                });
+                
+                document.getElementById('next-page').addEventListener('click', async () => {
+                    if (currentPage < pdfDoc.numPages) {
+                        currentPage++;
+                        await ensurePageRendered(currentPage);
+                        scrollToPage(currentPage);
+                        updateNavigation();
+                    }
+                });
+
+                // Масштабирование
+                document.querySelector('[data-action="zoom-out"]').addEventListener('click', () => {
+                    if (scale > 0.5) {
+                        scale = Math.max(0.5, scale - 0.1);
+                        updateZoom();
+                    }
+                });
+                
+                document.querySelector('[data-action="zoom-in"]').addEventListener('click', () => {
+                    if (scale < 3.0) {
+                        scale = Math.min(3.0, scale + 0.1);
+                        updateZoom();
+                    }
+                });
+                
+                document.querySelector('[data-action="reset-zoom"]').addEventListener('click', () => {
+                    scale = 1.0;
+                    updateZoom();
+                });
+
+                // Двойной тап для сброса зума
+                document.getElementById('pdf-pages-container').addEventListener('dblclick', (e) => {
+                    e.preventDefault();
+                    scale = 1.0;
+                    updateZoom();
+                });
+
+                // Обновление навигации при скролле
+                document.querySelector('.pdf-content').addEventListener('scroll', () => {
+                    updateCurrentPageFromScroll();
+                    // Отменяем рендеры невидимых страниц при скролле
+                    cancelNonVisibleRenders();
+                    
+                    // Обновляем приоритеты видимых страниц
+                    updateRenderPriorities();
+                });
+
+                // Свайпы для мобильных устройств
+                setupSwipeGestures();
+            }
+
+            // Обновление приоритетов рендеринга на основе видимости
+            function updateRenderPriorities() {
+                const visiblePages = getVisiblePages();
+                
+                // Высокий приоритет для видимых страниц
+                visiblePages.forEach(pageNum => {
+                    renderPriority.set(pageNum, 10);
+                });
+                
+                // Средний приоритет для страниц рядом с видимыми
+                const nearbyPages = new Set();
+                visiblePages.forEach(pageNum => {
+                    if (pageNum > 1) nearbyPages.add(pageNum - 1);
+                    if (pageNum < pdfDoc.numPages) nearbyPages.add(pageNum + 1);
+                });
+                
+                nearbyPages.forEach(pageNum => {
+                    if (!visiblePages.has(pageNum)) {
+                        renderPriority.set(pageNum, 5);
+                    }
+                });
+                
+                // Перезапускаем обработку очереди с новыми приоритетами
+                processRenderQueue();
+            }
+
+            async function ensurePageRendered(pageNum) {
+                // Используем гарантированный рендеринг для текущей страницы
+                await renderPageWithGuarantee(pageNum);
+            }
+
+            function scrollToPage(pageNum) {
+                const pageElement = document.getElementById(`page-${pageNum}`);
+                if (pageElement) {
+                    // Прокручиваем к началу страницы
+                    pageElement.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'start' 
+                    });
+                }
+            }
+
+            function updateCurrentPageFromScroll() {
+                if (!pdfDoc) return;
+                
+                const container = document.querySelector('.pdf-content');
+                const scrollTop = container.scrollTop;
+                const containerHeight = container.clientHeight;
+                
+                let newCurrentPage = 1;
+                let minDistance = Infinity;
+                
+                // Находим страницу, которая наиболее близка к центру экрана
+                for (let i = 1; i <= pdfDoc.numPages; i++) {
+                    const pageElement = document.getElementById(`page-${i}`);
+                    if (pageElement) {
+                        const pageTop = pageElement.offsetTop;
+                        const pageHeight = pageElement.offsetHeight;
+                        const pageCenter = pageTop + pageHeight / 2;
+                        const viewportCenter = scrollTop + containerHeight / 2;
+                        
+                        const distance = Math.abs(pageCenter - viewportCenter);
+                        
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            newCurrentPage = i;
+                        }
+                    }
+                }
+                
+                if (newCurrentPage !== currentPage) {
+                    currentPage = newCurrentPage;
+                    updateNavigation();
+                    
+                    // Гарантированно рендерим новую текущую страницу
+                    renderPageWithGuarantee(currentPage);
+                }
+            }
+
+            function updateZoom() {
+                isZooming = true;
+                document.querySelector('.zoom-indicator').textContent = `x${scale.toFixed(1)}`;
+                
+                // Показываем индикатор загрузки при изменении масштаба
+                showPageLoading('Обновление масштаба...');
+                
+                // Отменяем все активные рендеры
+                activeRenders.forEach((controller, pageNum) => {
+                    controller.abort();
+                });
+                activeRenders.clear();
+                renderQueue.clear();
+                renderPriority.clear();
+                
+                // Очищаем кэш и перерисовываем все видимые страницы с новым масштабом
+                canvasCache = {};
+                renderedPages.clear();
+                
+                // Перерисовываем все видимые страницы с новым масштабом
+                const visiblePages = getVisiblePages();
+                
+                // Добавляем текущую страницу, если она не видима
+                if (!visiblePages.has(currentPage)) {
+                    visiblePages.add(currentPage);
+                }
+                
+                // Перерисовываем страницы с гарантированным рендерингом
+                const renderPromises = Array.from(visiblePages).map(pageNum => 
+                    renderPageWithGuarantee(pageNum)
+                );
+                
+                // Ждем завершения перерисовки видимых страниц
+                Promise.all(renderPromises).then(() => {
+                    hidePageLoading();
+                    isZooming = false;
+                    
+                    // Обновляем навигацию
+                    updateNavigation();
+                }).catch(error => {
+                    console.error('Ошибка при обновлении масштаба:', error);
+                    hidePageLoading();
+                    isZooming = false;
+                });
+            }
+
+            function setupIntersectionObserver() {
+                if (observer) {
+                    observer.disconnect();
+                }
+                
+                const options = {
+                    root: document.querySelector('.pdf-content'),
+                    rootMargin: '300px',
+                    threshold: 0.1
+                };
+
+                observer = new IntersectionObserver((entries) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const pageNum = parseInt(entry.target.dataset.pageNumber);
+                            renderPageWithScaleCheck(pageNum);
+                            if (!renderedPages.has(pageNum) && !activeRenders.has(pageNum)) {
+                                // Устанавливаем приоритет для видимых страниц
+                                renderPriority.set(pageNum, 8);
+                                renderPage(pageNum);
+                            }
+                        }
+                    });
+                }, options);
+
+                // Наблюдаем за всеми страницами
+                const pages = document.querySelectorAll('.pdf-page-container');
+                pages.forEach(page => {
+                    observer.observe(page);
+                });
+            }
+
+            function getVisiblePages() {
+                const container = document.querySelector('.pdf-content');
+                const containerRect = container.getBoundingClientRect();
+                const pages = document.querySelectorAll('.pdf-page-container');
+                const visiblePages = new Set();
+                
+                pages.forEach(page => {
+                    const pageRect = page.getBoundingClientRect();
+                    
+                    // Проверяем, видна ли страница (хотя бы частично)
+                    if (
+                        pageRect.bottom >= containerRect.top && 
+                        pageRect.top <= containerRect.bottom
+                    ) {
+                        visiblePages.add(parseInt(page.dataset.pageNumber));
+                    }
+                });
+                
+                return visiblePages;
+            }
+
+            function setupSwipeGestures() {
+                const pdfContent = document.querySelector('.pdf-content');
+                let startY = 0;
+                let isScrolling = false;
+                
+                pdfContent.addEventListener('touchstart', (e) => {
+                    startY = e.touches[0].clientY;
+                    isScrolling = false;
+                }, { passive: true });
+                
+                pdfContent.addEventListener('touchmove', (e) => {
+                    if (!startY) return;
+                    
+                    const diffY = startY - e.touches[0].clientY;
+                    
+                    if (Math.abs(diffY) > 10) {
+                        isScrolling = true;
+                    }
+                }, { passive: true });
+                
+                pdfContent.addEventListener('touchend', (e) => {
+                    if (!startY || isScrolling) {
+                        startY = 0;
+                        return;
+                    }
+                    
+                    const endY = e.changedTouches[0].clientY;
+                    const diffY = startY - endY;
+                    
+                    if (Math.abs(diffY) > 100) {
+                        if (diffY > 0 && currentPage < pdfDoc.numPages) {
+                            currentPage++;
+                            ensurePageRendered(currentPage);
+                            scrollToPage(currentPage);
+                            updateNavigation();
+                        } else if (diffY < 0 && currentPage > 1) {
+                            currentPage--;
+                            ensurePageRendered(currentPage);
+                            scrollToPage(currentPage);
+                            updateNavigation();
+                        }
+                    }
+                    
+                    startY = 0;
+                }, { passive: true });
+            }
+        });
+    </script>
+</body>
+</html>
