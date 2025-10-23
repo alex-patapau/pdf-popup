@@ -276,16 +276,14 @@
             .pdf-viewer {
                 width: 95vw;
                 height: 95vh;
-                touch-action: none;
             }
             
             .pdf-content {
-                overflow: hidden;
-                touch-action: none;
+                overflow: auto;
+                -webkit-overflow-scrolling: touch;
             }
             
             .pdf-pages-container {
-                touch-action: none;
                 transform-origin: 0 0;
                 transition: transform 0.1s;
             }
@@ -297,7 +295,6 @@
             
             .pdf-page {
                 margin: 0 0 20px 0;
-                touch-action: none;
             }
             
             .pdf-controls {
@@ -320,11 +317,12 @@
 <body>
     <h1>PDF Просмотрщик</h1>
     <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
-        Открыть PDF
+        Открыть PDF v0.9
     </button>
     
     <div class="test-info">
         <p><strong>Протестируйте PDF-просмотрщик!</strong> Функционал проверен на Android-смартфонах и десктопах — работает масштабирование, панорамирование и плавная навигация.</p>
+        
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>
@@ -390,8 +388,8 @@
                     type: 'html'
                 }], {
                     closeButton: false,
-                    dragToClose: false, // Отключаем закрытие перетаскиванием
-                    swipeToClose: false, // Отключаем закрытие свайпом
+                    dragToClose: false,
+                    swipeToClose: false,
                     on: {
                         // Закрытие по клику на фон
                         click: (fancybox, event) => {
@@ -1157,13 +1155,15 @@
             function setupSwipeGestures() {
                 const pdfContent = document.querySelector('.pdf-content');
                 let startY = 0;
-                let isScrolling = false;
+                let startX = 0;
+                let isVerticalScroll = false;
                 
                 pdfContent.addEventListener('touchstart', (e) => {
                     // Только если не масштабируем и не панорамируем
                     if (!isPinching && !isPanning && e.touches.length === 1) {
                         startY = e.touches[0].clientY;
-                        isScrolling = false;
+                        startX = e.touches[0].clientX;
+                        isVerticalScroll = false;
                     }
                 }, { passive: true });
                 
@@ -1171,28 +1171,34 @@
                     if (!startY || isPinching || isPanning) return;
                     
                     const diffY = startY - e.touches[0].clientY;
+                    const diffX = startX - e.touches[0].clientX;
                     
-                    if (Math.abs(diffY) > 10) {
-                        isScrolling = true;
+                    // Определяем, это вертикальный скролл или горизонтальный
+                    if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > 5) {
+                        isVerticalScroll = true;
                     }
                 }, { passive: true });
                 
                 pdfContent.addEventListener('touchend', (e) => {
-                    if (!startY || isScrolling || isPinching || isPanning) {
+                    if (!startY || isPinching || isPanning) {
                         startY = 0;
+                        startX = 0;
                         return;
                     }
                     
                     const endY = e.changedTouches[0].clientY;
                     const diffY = startY - endY;
                     
-                    if (Math.abs(diffY) > 100) {
+                    // Только вертикальные свайпы для навигации
+                    if (Math.abs(diffY) > 50 && isVerticalScroll) {
                         if (diffY > 0 && currentPage < pdfDoc.numPages) {
+                            // Свайп вверх - следующая страница
                             currentPage++;
                             ensurePageRendered(currentPage);
                             scrollToPage(currentPage);
                             updateNavigation();
                         } else if (diffY < 0 && currentPage > 1) {
+                            // Свайп вниз - предыдущая страница
                             currentPage--;
                             ensurePageRendered(currentPage);
                             scrollToPage(currentPage);
@@ -1201,6 +1207,8 @@
                     }
                     
                     startY = 0;
+                    startX = 0;
+                    isVerticalScroll = false;
                 }, { passive: true });
             }
         });
