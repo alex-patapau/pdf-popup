@@ -28,11 +28,23 @@
             font-size: 16px;
             transition: background-color 0.3s;
         }
+        /* Overlay viewer - hidden by default, shown when .active is added */
+        .pdf-viewer {
+            position: fixed;
+            inset: 0;
+            display: none; /* hidden until opened */
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 9999;
+        }
+
+        .pdf-viewer.active {
+            display: flex;
+        }
+
         .pdf-viewer-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            position: relative;
             width: 90%;
             height: 90%;
             background: white;
@@ -41,6 +53,7 @@
             display: flex;
             flex-direction: column;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transform: translateY(0); /* keep content positioning stable inside overlay */
         }
 
         .pdf-header {
@@ -227,7 +240,7 @@
 <body>
     <h1>PDF Просмотрщик с Lightbox</h1>
     <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
-        Открыть PDF v0.10.9
+        Открыть PDF v0.10.10
     </button>
 
     <div class="pdf-viewer">
