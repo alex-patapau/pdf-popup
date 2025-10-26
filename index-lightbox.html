@@ -28,30 +28,6 @@
             font-size: 16px;
             transition: background-color 0.3s;
         }
-
-        .open-pdf-btn:hover {
-            background-color: #3a5ec0;
-        }
-
-        /* Стили для лайтбокса PDF */
-        .pdf-viewer {
-            display: none; /* Скрыт по умолчанию */
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            z-index: 9999;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .pdf-viewer.active {
-            display: block;
-            opacity: 1;
-        }
-
         .pdf-viewer-content {
             position: absolute;
             top: 50%;
@@ -251,7 +227,7 @@
 <body>
     <h1>PDF Просмотрщик с Lightbox</h1>
     <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
-        Открыть PDF v0.10.8
+        Открыть PDF v0.10.9
     </button>
 
     <div class="pdf-viewer">
@@ -304,7 +280,7 @@
                 loadingTask.promise.then(pdf => {
                     pdfDoc = pdf;
                     document.querySelector('.total-pages').textContent = pdf.numPages;
-                    renderAllPages(); // Рендерим все страницы
+                    renderCurrentPage(); // Рендерим только текущую страницу
                     loading.classList.remove('active');
                 }).catch(error => {
                     console.error('Ошибка при загрузке PDF:', error);
@@ -312,38 +288,52 @@
                 });
             }
 
-            // Рендеринг всех страниц
-            // Рендеринг всех страниц
-            async function renderAllPages() {
+            // Ленивая отрисовка: кэш canvas и рендер текущей страницы + соседних
+            const canvasCache = {};
+            const renderedPages = new Set();
+
+            async function renderPage(pageNum) {
+                if (!pdfDoc) return null;
+
+                const cached = canvasCache[pageNum];
+                if (cached && parseFloat(cached.dataset.scale) === scale) {
+                    return cached;
+                }
+
+                const page = await pdfDoc.getPage(pageNum);
+                const viewport = page.getViewport({ scale });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                canvas.className = 'pdf-page';
+                canvas.setAttribute('data-page', pageNum);
+                canvas.dataset.scale = scale;
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+
+                await page.render(renderContext).promise;
+
+                canvasCache[pageNum] = canvas;
+                renderedPages.add(pageNum);
+                return canvas;
+            }
+
+            // Рендер только текущей страницы (вызывается при навигации)
+            async function renderCurrentPage() {
+                if (!pdfDoc) return;
                 loading.classList.add('active');
                 try {
-                    // Очищаем контейнер
+                    const canvas = await renderPage(currentPage);
+                    // Показываем только текущую страницу
                     pagesContainer.innerHTML = '';
-                    
-                    // Рендерим все страницы
-                    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
-                        const page = await pdfDoc.getPage(pageNum);
-                        const viewport = page.getViewport({ scale });
-                        const canvas = document.createElement('canvas');
-                        const context = canvas.getContext('2d');
-                        canvas.height = viewport.height;
-                        canvas.width = viewport.width;
-                        canvas.className = 'pdf-page';
-                        canvas.setAttribute('data-page', pageNum);
-
-                        const renderContext = {
-                            canvasContext: context,
-                            viewport: viewport
-                        };
-
-                        await page.render(renderContext).promise;
-                        pagesContainer.appendChild(canvas);
-                    }
-
-                    // Обновляем UI
+                    if (canvas) pagesContainer.appendChild(canvas);
                     updateUI();
-                } catch (error) {
-                    console.error('Ошибка при рендеринге страниц:', error);
+                } catch (err) {
+                    console.error('Ошибка при рендеринге текущей страницы:', err);
                 } finally {
                     loading.classList.remove('active');
                 }
@@ -369,31 +359,38 @@
             document.querySelector('[data-nav="prev"]').addEventListener('click', () => {
                 if (currentPage > 1) {
                     currentPage--;
-                    updateUI();
+                    renderCurrentPage();
                 }
             });
 
             document.querySelector('[data-nav="next"]').addEventListener('click', () => {
                 if (pdfDoc && currentPage < pdfDoc.numPages) {
                     currentPage++;
-                    updateUI();
+                    renderCurrentPage();
                 }
             });
 
             // Обработчики для зума
             document.querySelector('[data-zoom="in"]').addEventListener('click', () => {
+                // Очистим кэш при изменении масштаба, чтобы не сохранять canvases с разных scale
+                for (const k in canvasCache) delete canvasCache[k];
+                renderedPages.clear();
                 scale = Math.min(scale + 0.25, 3.0);
-                renderAllPages();
+                renderCurrentPage();
             });
 
             document.querySelector('[data-zoom="out"]').addEventListener('click', () => {
+                for (const k in canvasCache) delete canvasCache[k];
+                renderedPages.clear();
                 scale = Math.max(scale - 0.25, 0.5);
-                renderAllPages();
+                renderCurrentPage();
             });
 
             document.querySelector('[data-zoom="reset"]').addEventListener('click', () => {
+                for (const k in canvasCache) delete canvasCache[k];
+                renderedPages.clear();
                 scale = window.innerWidth <= 768 ? 2.0 : 1.0;
-                renderAllPages();
+                renderCurrentPage();
             });
 
             // Закрытие просмотрщика
@@ -422,13 +419,13 @@
                     case 'ArrowLeft':
                         if (currentPage > 1) {
                             currentPage--;
-                            updateUI();
+                            renderCurrentPage();
                         }
                         break;
                     case 'ArrowRight':
                         if (pdfDoc && currentPage < pdfDoc.numPages) {
                             currentPage++;
-                            updateUI();
+                            renderCurrentPage();
                         }
                         break;
                 }
@@ -451,12 +448,12 @@
 
                 // Определяем, был ли это горизонтальный свайп
                 if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
-                    if (deltaX > 0 && currentPage > 1) {
+                        if (deltaX > 0 && currentPage > 1) {
                         currentPage--;
-                        updateUI();
+                        renderCurrentPage();
                     } else if (deltaX < 0 && pdfDoc && currentPage < pdfDoc.numPages) {
                         currentPage++;
-                        updateUI();
+                        renderCurrentPage();
                     }
                 }
             });
