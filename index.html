@@ -52,12 +52,13 @@
             z-index: 9999 !important;
         }
 
-        .glightbox-container .gslide {
+        .gslide {
             background: rgba(0, 0, 0, 0.8) !important;
         }
 
         .goverlay {
             background: rgba(0, 0, 0, 0.8) !important;
+            z-index: 9998 !important;
         }
 
         .gclose {
@@ -350,20 +351,29 @@
                 font-size: 20px !important;
             }
         }
+
+        /* Скрываем оригинальный контент при открытом модальном окне */
+        body.glightbox-open {
+            overflow: hidden;
+        }
+
+        .glightbox-open .gcontainer {
+            z-index: 9999 !important;
+        }
     </style>
 </head>
 <body>
     <h1>PDF Просмотрщик</h1>
     <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
-        Открыть PDF v0.10.1
+        Открыть PDF v0.10.2
     </button>
     
     <div class="test-info">
         <p><strong>Протестируйте PDF-просмотрщик!</strong> Функционал проверен на Android-смартфонах и десктопах — работает масштабирование, панорамирование и плавная навигация.</p>
     </div>
 
-    <!-- GLightbox контейнер для PDF просмотрщика -->
-    <div id="pdf-viewer-container" style="display: none;">
+    <!-- Скрытый контейнер для PDF просмотрщика -->
+    <div class="glightbox-pdf-container" style="display: none;">
         <div class="pdf-viewer">
             <div class="pdf-header">
                 <h2 class="pdf-title">PDF Просмотрщик</h2>
@@ -408,63 +418,71 @@
             return window.innerWidth <= 768;
         }
 
-        // Инициализация GLightbox
-        const lightbox = GLightbox({
-            selector: '.glightbox',
-            touchNavigation: true,
-            loop: false,
-            closeOnOutsideClick: true
-        });
-
         document.addEventListener('DOMContentLoaded', function() {
             const openPdfBtn = document.querySelector('.open-pdf-btn');
-            const pdfViewerContainer = document.getElementById('pdf-viewer-container');
             
+            // Инициализация GLightbox
+            const lightbox = GLightbox({
+                touchNavigation: true,
+                loop: false,
+                closeOnOutsideClick: true,
+                autoplayVideos: false
+            });
+
             openPdfBtn.addEventListener('click', function() {
                 const pdfUrl = this.getAttribute('data-pdf-url');
                 openPdfViewer(pdfUrl);
             });
 
             function openPdfViewer(pdfUrl) {
-                // Показываем контейнер с PDF просмотрщиком
-                pdfViewerContainer.style.display = 'block';
-                
-                // Открываем GLightbox
+                // Создаем HTML контент для PDF просмотрщика
+                const pdfViewerHTML = `
+                    <div class="pdf-viewer">
+                        <div class="pdf-header">
+                            <h2 class="pdf-title">PDF Просмотрщик</h2>
+                            <button class="pdf-close">×</button>
+                        </div>
+                        <div class="pdf-content">
+                            <div class="loading">Загрузка PDF...</div>
+                            <div class="pdf-pages-container" id="pdf-pages-container"></div>
+                            <div class="page-loading" id="page-loading">Загрузка страницы...</div>
+                            <div class="render-indicator" id="render-indicator">Рендеринг...</div>
+                            ${isMobileDevice() ? '<div class="pan-indicator" id="pan-indicator">Панорамирование включено</div>' : ''}
+                        </div>
+                        <div class="pdf-controls">
+                            <div class="zoom-controls">
+                                <button class="zoom-btn" data-action="zoom-out">-</button>
+                                <span class="zoom-indicator">x1.0</span>
+                                <button class="zoom-btn" data-action="zoom-in">+</button>
+                                <button class="zoom-btn" data-action="reset-zoom">Сброс</button>
+                            </div>
+                            <div class="page-nav">
+                                <button class="nav-btn" id="prev-page" disabled>Назад</button>
+                                <span class="page-info">Страница <span id="current-page">1</span> из <span id="total-pages">0</span></span>
+                                <button class="nav-btn" id="next-page">Вперед</button>
+                            </div>
+                        </div>
+                        ${isMobileDevice() ? `
+                        <div class="mobile-zoom-controls">
+                            <button class="mobile-zoom-btn" data-action="zoom-in">+</button>
+                            <button class="mobile-zoom-btn" data-action="zoom-out">-</button>
+                            <button class="mobile-zoom-btn" data-action="reset-zoom">↺</button>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                // Открываем GLightbox с нашим контентом
                 lightbox.open({
-                    content: pdfViewerContainer,
+                    content: pdfViewerHTML,
                     type: 'html'
                 });
 
-                // Загружаем PDF после открытия модального окна
+                // Даем время для отображения модального окна перед загрузкой PDF
                 setTimeout(() => {
                     loadPdf(pdfUrl);
                 }, 100);
-
-                // Настраиваем обработчики для закрытия
-                setupCloseHandlers();
             }
-
-            function setupCloseHandlers() {
-                // Кнопка закрытия в заголовке
-                document.querySelector('.pdf-close').addEventListener('click', () => {
-                    closePdfViewer();
-                });
-
-                // Закрытие по ESC уже обрабатывается GLightbox
-                // Закрытие по клику вне области также обрабатывается GLightbox
-            }
-
-            function closePdfViewer() {
-                lightbox.close();
-                cleanupPdfViewer();
-                pdfViewerContainer.style.display = 'none';
-            }
-
-            // Обработчик закрытия GLightbox
-            document.addEventListener('glightbox:close', () => {
-                cleanupPdfViewer();
-                pdfViewerContainer.style.display = 'none';
-            });
 
             // Переменные для управления PDF
             let pdfDoc = null;
@@ -842,26 +860,40 @@
             }
 
             function setupEventHandlers() {
-                // Кнопка закрытия уже настроена в setupCloseHandlers()
+                // Кнопка закрытия
+                const closeBtn = document.querySelector('.pdf-close');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', () => {
+                        lightbox.close();
+                        cleanupPdfViewer();
+                    });
+                }
 
                 // Навигация по кнопкам
-                document.getElementById('prev-page').addEventListener('click', async () => {
-                    if (currentPage > 1) {
-                        currentPage--;
-                        await ensurePageRendered(currentPage);
-                        scrollToPage(currentPage);
-                        updateNavigation();
-                    }
-                });
+                const prevPageBtn = document.getElementById('prev-page');
+                const nextPageBtn = document.getElementById('next-page');
                 
-                document.getElementById('next-page').addEventListener('click', async () => {
-                    if (currentPage < pdfDoc.numPages) {
-                        currentPage++;
-                        await ensurePageRendered(currentPage);
-                        scrollToPage(currentPage);
-                        updateNavigation();
-                    }
-                });
+                if (prevPageBtn) {
+                    prevPageBtn.addEventListener('click', async () => {
+                        if (currentPage > 1) {
+                            currentPage--;
+                            await ensurePageRendered(currentPage);
+                            scrollToPage(currentPage);
+                            updateNavigation();
+                        }
+                    });
+                }
+                
+                if (nextPageBtn) {
+                    nextPageBtn.addEventListener('click', async () => {
+                        if (currentPage < pdfDoc.numPages) {
+                            currentPage++;
+                            await ensurePageRendered(currentPage);
+                            scrollToPage(currentPage);
+                            updateNavigation();
+                        }
+                    });
+                }
 
                 // Масштабирование для десктопа
                 document.querySelectorAll('[data-action="zoom-out"]').forEach(btn => {
@@ -894,25 +926,31 @@
                 });
 
                 // Двойной тап для сброса зума
-                document.getElementById('pdf-pages-container').addEventListener('dblclick', (e) => {
-                    e.preventDefault();
-                    scale = 1.0;
-                    if (isMobileDevice()) {
-                        containerTransform.x = 0;
-                        containerTransform.y = 0;
-                    }
-                    updateZoom();
-                });
+                const pagesContainer = document.getElementById('pdf-pages-container');
+                if (pagesContainer) {
+                    pagesContainer.addEventListener('dblclick', (e) => {
+                        e.preventDefault();
+                        scale = 1.0;
+                        if (isMobileDevice()) {
+                            containerTransform.x = 0;
+                            containerTransform.y = 0;
+                        }
+                        updateZoom();
+                    });
+                }
 
                 // Обновление навигации при скролле
-                document.querySelector('.pdf-content').addEventListener('scroll', () => {
-                    updateCurrentPageFromScroll();
-                    // Отменяем рендеры невидимых страниц при скролле
-                    cancelNonVisibleRenders();
-                    
-                    // Обновляем приоритеты видимых страниц
-                    updateRenderPriorities();
-                });
+                const pdfContent = document.querySelector('.pdf-content');
+                if (pdfContent) {
+                    pdfContent.addEventListener('scroll', () => {
+                        updateCurrentPageFromScroll();
+                        // Отменяем рендеры невидимых страниц при скролле
+                        cancelNonVisibleRenders();
+                        
+                        // Обновляем приоритеты видимых страниц
+                        updateRenderPriorities();
+                    });
+                }
 
                 // Свайпы для мобильных устройств
                 if (isMobileDevice()) {
@@ -923,6 +961,7 @@
             // Настройка обработчиков жестов для мобильных устройств
             function setupGestureHandlers() {
                 const pdfContent = document.querySelector('.pdf-content');
+                if (!pdfContent) return;
                 
                 // Обработчики для pinch-to-zoom и панорамирования
                 pdfContent.addEventListener('touchstart', handleTouchStart, { passive: false });
@@ -944,7 +983,8 @@
                     isPanning = true;
                     startX = e.touches[0].clientX - containerTransform.x;
                     startY = e.touches[0].clientY - containerTransform.y;
-                    document.getElementById('pan-indicator').style.display = 'block';
+                    const panIndicator = document.getElementById('pan-indicator');
+                    if (panIndicator) panIndicator.style.display = 'block';
                     e.preventDefault();
                 }
             }
@@ -983,7 +1023,8 @@
                 }
                 if (e.touches.length === 0) {
                     isPanning = false;
-                    document.getElementById('pan-indicator').style.display = 'none';
+                    const panIndicator = document.getElementById('pan-indicator');
+                    if (panIndicator) panIndicator.style.display = 'none';
                 }
             }
 
@@ -992,7 +1033,9 @@
                 if (!isMobileDevice()) return;
                 
                 const pagesContainer = document.getElementById('pdf-pages-container');
-                pagesContainer.style.transform = `translate(${containerTransform.x}px, ${containerTransform.y}px) scale(${containerTransform.scale})`;
+                if (pagesContainer) {
+                    pagesContainer.style.transform = `translate(${containerTransform.x}px, ${containerTransform.y}px) scale(${containerTransform.scale})`;
+                }
             }
 
             // Вспомогательная функция для расчета расстояния между двумя точками
@@ -1002,7 +1045,7 @@
                 return Math.sqrt(dx * dx + dy * dy);
             }
 
-            // Обновление приоритетов рендеринга на основе видимости
+            // Обновление приоритеты рендеринга на основе видимости
             function updateRenderPriorities() {
                 const visiblePages = getVisiblePages();
                 
@@ -1055,6 +1098,8 @@
                 if (!pdfDoc) return;
                 
                 const container = document.querySelector('.pdf-content');
+                if (!container) return;
+                
                 const scrollTop = container.scrollTop;
                 const containerHeight = container.clientHeight;
                 
@@ -1090,7 +1135,8 @@
 
             function updateZoom() {
                 isZooming = true;
-                document.querySelector('.zoom-indicator').textContent = `x${scale.toFixed(1)}`;
+                const zoomIndicator = document.querySelector('.zoom-indicator');
+                if (zoomIndicator) zoomIndicator.textContent = `x${scale.toFixed(1)}`;
                 
                 // Обновляем трансформацию контейнера (только для мобильных)
                 if (isMobileDevice()) {
@@ -1148,8 +1194,11 @@
                     observer.disconnect();
                 }
                 
+                const container = document.querySelector('.pdf-content');
+                if (!container) return;
+                
                 const options = {
-                    root: document.querySelector('.pdf-content'),
+                    root: container,
                     rootMargin: '300px',
                     threshold: 0.1
                 };
@@ -1177,6 +1226,8 @@
 
             function getVisiblePages() {
                 const container = document.querySelector('.pdf-content');
+                if (!container) return new Set();
+                
                 const containerRect = container.getBoundingClientRect();
                 const pages = document.querySelectorAll('.pdf-page-container');
                 const visiblePages = new Set();
@@ -1198,6 +1249,8 @@
 
             function setupSwipeGestures() {
                 const pdfContent = document.querySelector('.pdf-content');
+                if (!pdfContent) return;
+                
                 let startY = 0;
                 let startX = 0;
                 let isVerticalScroll = false;
