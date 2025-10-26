@@ -251,7 +251,7 @@
 <body>
     <h1>PDF Просмотрщик с Lightbox</h1>
     <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
-        Открыть PDF v0.10.6
+        Открыть PDF v0.10.7
     </button>
 
     <div class="pdf-viewer">
@@ -304,7 +304,7 @@
                 loadingTask.promise.then(pdf => {
                     pdfDoc = pdf;
                     document.querySelector('.total-pages').textContent = pdf.numPages;
-                    renderPage(currentPage);
+                    renderAllPages(); // Рендерим все страницы
                     loading.classList.remove('active');
                 }).catch(error => {
                     console.error('Ошибка при загрузке PDF:', error);
@@ -313,39 +313,55 @@
             }
 
             // Рендеринг всех страниц
-            // Рендеринг страницы
-            async function renderPage(num) {
+            // Рендеринг всех страниц
+            async function renderAllPages() {
                 loading.classList.add('active');
                 try {
-                    const page = await pdfDoc.getPage(num);
-                    const viewport = page.getViewport({ scale });
-                    const canvas = document.createElement('canvas');
-                    const context = canvas.getContext('2d');
-                    canvas.height = viewport.height;
-                    canvas.width = viewport.width;
-                    canvas.className = 'pdf-page';
-
                     // Очищаем контейнер
                     pagesContainer.innerHTML = '';
                     
-                    const renderContext = {
-                        canvasContext: context,
-                        viewport: viewport
-                    };
+                    // Рендерим все страницы
+                    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                        const page = await pdfDoc.getPage(pageNum);
+                        const viewport = page.getViewport({ scale });
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.height = viewport.height;
+                        canvas.width = viewport.width;
+                        canvas.className = 'pdf-page';
+                        canvas.setAttribute('data-page', pageNum);
 
-                    await page.render(renderContext).promise;
-                    pagesContainer.appendChild(canvas);
+                        const renderContext = {
+                            canvasContext: context,
+                            viewport: viewport
+                        };
+
+                        await page.render(renderContext).promise;
+                        pagesContainer.appendChild(canvas);
+                    }
 
                     // Обновляем UI
-                    document.querySelector('.current-page').textContent = num;
-                    document.querySelector('[data-nav="prev"]').disabled = num <= 1;
-                    document.querySelector('[data-nav="next"]').disabled = num >= pdfDoc.numPages;
-                    document.querySelector('.zoom-level').textContent = `${Math.round(scale * 100)}%`;
+                    updateUI();
                 } catch (error) {
-                    console.error('Ошибка при рендеринге страницы:', error);
+                    console.error('Ошибка при рендеринге страниц:', error);
                 } finally {
                     loading.classList.remove('active');
                 }
+            }
+
+            // Обновление UI и прокрутка к текущей странице
+            function updateUI() {
+                document.querySelector('.current-page').textContent = currentPage;
+                document.querySelector('[data-nav="prev"]').disabled = currentPage <= 1;
+                document.querySelector('[data-nav="next"]').disabled = currentPage >= pdfDoc.numPages;
+                document.querySelector('.zoom-level').textContent = `${Math.round(scale * 100)}%`;
+
+                // Прокручиваем к текущей странице
+                const currentPageElement = pagesContainer.querySelector(`[data-page="${currentPage}"]`);
+                if (currentPageElement) {
+                    currentPageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }
             }
 
             // Обновление UI
@@ -366,31 +382,31 @@
             document.querySelector('[data-nav="prev"]').addEventListener('click', () => {
                 if (currentPage > 1) {
                     currentPage--;
-                    renderPage(currentPage);
+                    updateUI();
                 }
             });
 
             document.querySelector('[data-nav="next"]').addEventListener('click', () => {
                 if (pdfDoc && currentPage < pdfDoc.numPages) {
                     currentPage++;
-                    renderPage(currentPage);
+                    updateUI();
                 }
             });
 
             // Обработчики для зума
             document.querySelector('[data-zoom="in"]').addEventListener('click', () => {
                 scale = Math.min(scale + 0.25, 3.0);
-                renderPage(currentPage);
+                renderAllPages();
             });
 
             document.querySelector('[data-zoom="out"]').addEventListener('click', () => {
                 scale = Math.max(scale - 0.25, 0.5);
-                renderPage(currentPage);
+                renderAllPages();
             });
 
             document.querySelector('[data-zoom="reset"]').addEventListener('click', () => {
                 scale = window.innerWidth <= 768 ? 2.0 : 1.0;
-                renderPage(currentPage);
+                renderAllPages();
             });
 
             // Закрытие просмотрщика
