@@ -251,7 +251,7 @@
 <body>
     <h1>PDF Просмотрщик с Lightbox</h1>
     <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
-        Открыть PDF v0.10.7
+        Открыть PDF v0.10.8
     </button>
 
     <div class="pdf-viewer">
@@ -349,20 +349,7 @@
                 }
             }
 
-            // Обновление UI и прокрутка к текущей странице
-            function updateUI() {
-                document.querySelector('.current-page').textContent = currentPage;
-                document.querySelector('[data-nav="prev"]').disabled = currentPage <= 1;
-                document.querySelector('[data-nav="next"]').disabled = currentPage >= pdfDoc.numPages;
-                document.querySelector('.zoom-level').textContent = `${Math.round(scale * 100)}%`;
-
-                // Прокручиваем к текущей странице
-                const currentPageElement = pagesContainer.querySelector(`[data-page="${currentPage}"]`);
-                if (currentPageElement) {
-                    currentPageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }
-            }
+            // (removed duplicate updateUI block)
 
             // Обновление UI
             function updateUI() {
