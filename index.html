@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Viewer</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -47,17 +47,47 @@
             line-height: 1.5;
         }
 
-        .fancybox__container {
-            z-index: 9999;
+        /* GLightbox кастомные стили */
+        .glightbox-container {
+            z-index: 9999 !important;
         }
 
-        .fancybox__backdrop {
-            background: rgba(0, 0, 0, 0.8);
+        .glightbox-container .gslide {
+            background: rgba(0, 0, 0, 0.8) !important;
         }
 
+        .goverlay {
+            background: rgba(0, 0, 0, 0.8) !important;
+        }
+
+        .gclose {
+            position: fixed !important;
+            top: 20px !important;
+            right: 20px !important;
+            width: 40px !important;
+            height: 40px !important;
+            background: rgba(255, 255, 255, 0.2) !important;
+            border-radius: 50% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            color: white !important;
+            font-size: 24px !important;
+            border: none !important;
+            cursor: pointer !important;
+            z-index: 10001 !important;
+            transition: background-color 0.3s !important;
+        }
+
+        .gclose:hover {
+            background: rgba(255, 255, 255, 0.3) !important;
+        }
+
+        /* PDF Viewer стили */
         .pdf-viewer {
-            width: 90vw;
-            height: 90vh;
+            width: 95vw;
+            height: 95vh;
+            max-width: 1200px;
             background: white;
             border-radius: 8px;
             overflow: hidden;
@@ -274,8 +304,8 @@
             }
 
             .pdf-viewer {
-                width: 95vw;
-                height: 95vh;
+                width: 98vw;
+                height: 98vh;
             }
             
             .pdf-content {
@@ -311,21 +341,63 @@
             .mobile-zoom-controls {
                 display: flex !important;
             }
+
+            .gclose {
+                top: 10px !important;
+                right: 10px !important;
+                width: 35px !important;
+                height: 35px !important;
+                font-size: 20px !important;
+            }
         }
     </style>
 </head>
 <body>
     <h1>PDF Просмотрщик</h1>
     <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
-        Открыть PDF v0.9
+        Открыть PDF v0.10.1
     </button>
     
     <div class="test-info">
         <p><strong>Протестируйте PDF-просмотрщик!</strong> Функционал проверен на Android-смартфонах и десктопах — работает масштабирование, панорамирование и плавная навигация.</p>
-        
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>
+    <!-- GLightbox контейнер для PDF просмотрщика -->
+    <div id="pdf-viewer-container" style="display: none;">
+        <div class="pdf-viewer">
+            <div class="pdf-header">
+                <h2 class="pdf-title">PDF Просмотрщик</h2>
+                <button class="pdf-close">×</button>
+            </div>
+            <div class="pdf-content">
+                <div class="loading">Загрузка PDF...</div>
+                <div class="pdf-pages-container" id="pdf-pages-container"></div>
+                <div class="page-loading" id="page-loading">Загрузка страницы...</div>
+                <div class="render-indicator" id="render-indicator">Рендеринг...</div>
+                <div class="pan-indicator" id="pan-indicator">Панорамирование включено</div>
+            </div>
+            <div class="pdf-controls">
+                <div class="zoom-controls">
+                    <button class="zoom-btn" data-action="zoom-out">-</button>
+                    <span class="zoom-indicator">x1.0</span>
+                    <button class="zoom-btn" data-action="zoom-in">+</button>
+                    <button class="zoom-btn" data-action="reset-zoom">Сброс</button>
+                </div>
+                <div class="page-nav">
+                    <button class="nav-btn" id="prev-page" disabled>Назад</button>
+                    <span class="page-info">Страница <span id="current-page">1</span> из <span id="total-pages">0</span></span>
+                    <button class="nav-btn" id="next-page">Вперед</button>
+                </div>
+            </div>
+            <div class="mobile-zoom-controls">
+                <button class="mobile-zoom-btn" data-action="zoom-in">+</button>
+                <button class="mobile-zoom-btn" data-action="zoom-out">-</button>
+                <button class="mobile-zoom-btn" data-action="reset-zoom">↺</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/gh/mcstudios/glightbox/dist/js/glightbox.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         // Устанавливаем путь к worker'у PDF.js
@@ -336,8 +408,17 @@
             return window.innerWidth <= 768;
         }
 
+        // Инициализация GLightbox
+        const lightbox = GLightbox({
+            selector: '.glightbox',
+            touchNavigation: true,
+            loop: false,
+            closeOnOutsideClick: true
+        });
+
         document.addEventListener('DOMContentLoaded', function() {
             const openPdfBtn = document.querySelector('.open-pdf-btn');
+            const pdfViewerContainer = document.getElementById('pdf-viewer-container');
             
             openPdfBtn.addEventListener('click', function() {
                 const pdfUrl = this.getAttribute('data-pdf-url');
@@ -345,78 +426,45 @@
             });
 
             function openPdfViewer(pdfUrl) {
-                const mobileZoomControls = `
-                    <div class="mobile-zoom-controls">
-                        <button class="mobile-zoom-btn" data-action="zoom-in">+</button>
-                        <button class="mobile-zoom-btn" data-action="zoom-out">-</button>
-                        <button class="mobile-zoom-btn" data-action="reset-zoom">↺</button>
-                    </div>
-                `;
-
-                const modalContent = `
-                    <div class="pdf-viewer">
-                        <div class="pdf-header">
-                            <h2 class="pdf-title">PDF Просмотрщик</h2>
-                            <button class="pdf-close">×</button>
-                        </div>
-                        <div class="pdf-content">
-                            <div class="loading">Загрузка PDF...</div>
-                            <div class="pdf-pages-container" id="pdf-pages-container"></div>
-                            <div class="page-loading" id="page-loading">Загрузка страницы...</div>
-                            <div class="render-indicator" id="render-indicator">Рендеринг...</div>
-                            ${isMobileDevice() ? '<div class="pan-indicator" id="pan-indicator">Панорамирование включено</div>' : ''}
-                        </div>
-                        <div class="pdf-controls">
-                            <div class="zoom-controls">
-                                <button class="zoom-btn" data-action="zoom-out">-</button>
-                                <span class="zoom-indicator">x1.0</span>
-                                <button class="zoom-btn" data-action="zoom-in">+</button>
-                                <button class="zoom-btn" data-action="reset-zoom">Сброс</button>
-                            </div>
-                            <div class="page-nav">
-                                <button class="nav-btn" id="prev-page" disabled>Назад</button>
-                                <span class="page-info">Страница <span id="current-page">1</span> из <span id="total-pages">0</span></span>
-                                <button class="nav-btn" id="next-page">Вперед</button>
-                            </div>
-                        </div>
-                        ${isMobileDevice() ? mobileZoomControls : ''}
-                    </div>
-                `;
-
-                Fancybox.show([{
-                    src: modalContent,
+                // Показываем контейнер с PDF просмотрщиком
+                pdfViewerContainer.style.display = 'block';
+                
+                // Открываем GLightbox
+                lightbox.open({
+                    content: pdfViewerContainer,
                     type: 'html'
-                }], {
-                    closeButton: false,
-                    dragToClose: false,
-                    swipeToClose: false,
-                    on: {
-                        // Закрытие по клику на фон
-                        click: (fancybox, event) => {
-                            if (!event.target.closest('.pdf-viewer')) {
-                                Fancybox.close();
-                                cleanupPdfViewer();
-                            }
-                        },
-                        // Закрытие по клавише Esc
-                        keydown: (fancybox, event) => {
-                            if (event.key === 'Escape') {
-                                Fancybox.close();
-                                cleanupPdfViewer();
-                            }
-                        },
-                        // Очистка при закрытии fancybox
-                        destroy: () => {
-                            cleanupPdfViewer();
-                        }
-                    }
                 });
 
-                // Даем время для отображения модального окна перед загрузкой PDF
+                // Загружаем PDF после открытия модального окна
                 setTimeout(() => {
                     loadPdf(pdfUrl);
                 }, 100);
+
+                // Настраиваем обработчики для закрытия
+                setupCloseHandlers();
             }
+
+            function setupCloseHandlers() {
+                // Кнопка закрытия в заголовке
+                document.querySelector('.pdf-close').addEventListener('click', () => {
+                    closePdfViewer();
+                });
+
+                // Закрытие по ESC уже обрабатывается GLightbox
+                // Закрытие по клику вне области также обрабатывается GLightbox
+            }
+
+            function closePdfViewer() {
+                lightbox.close();
+                cleanupPdfViewer();
+                pdfViewerContainer.style.display = 'none';
+            }
+
+            // Обработчик закрытия GLightbox
+            document.addEventListener('glightbox:close', () => {
+                cleanupPdfViewer();
+                pdfViewerContainer.style.display = 'none';
+            });
 
             // Переменные для управления PDF
             let pdfDoc = null;
@@ -794,11 +842,7 @@
             }
 
             function setupEventHandlers() {
-                // Кнопка закрытия
-                document.querySelector('.pdf-close').addEventListener('click', () => {
-                    Fancybox.close();
-                    cleanupPdfViewer();
-                });
+                // Кнопка закрытия уже настроена в setupCloseHandlers()
 
                 // Навигация по кнопкам
                 document.getElementById('prev-page').addEventListener('click', async () => {
