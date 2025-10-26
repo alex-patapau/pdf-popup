@@ -159,8 +159,8 @@
         /* Мобильные стили */
         @media (max-width: 768px) {
             .pdf-viewer-content {
-                width: 95%;
-                height: 95%;
+                width: 98%;
+                height: 98%;
             }
 
             .pdf-controls {
@@ -170,6 +170,14 @@
 
             .pdf-content {
                 padding: 10px;
+                -webkit-overflow-scrolling: touch; /* Плавный скролл на iOS */
+            }
+
+            .pdf-page {
+                max-width: 100%;
+                height: auto;
+                image-rendering: -webkit-optimize-contrast; /* Улучшенное качество на webkit */
+                image-rendering: crisp-edges; /* Улучшенное качество на других браузерах */
             }
         }
 
@@ -243,7 +251,7 @@
 <body>
     <h1>PDF Просмотрщик с Lightbox</h1>
     <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
-        Открыть PDF v0.10.4
+        Открыть PDF v0.10.5
     </button>
 
     <div class="pdf-viewer">
@@ -285,6 +293,30 @@
             let pdfDoc = null;
             let currentPage = 1;
             let scale = 1.0;
+            let defaultScale = 1.0;
+            
+            // Функция для определения оптимального масштаба
+            function calculateOptimalScale(page) {
+                const viewport = page.getViewport({ scale: 1.0 });
+                const content = document.querySelector('.pdf-content');
+                const contentWidth = content.clientWidth - 40; // Учитываем паддинги
+                
+                // Получаем pixel ratio устройства для лучшей четкости на мобильных
+                const pixelRatio = window.devicePixelRatio || 1;
+                
+                // Рассчитываем масштаб на основе ширины контента
+                let optimalScale = (contentWidth / viewport.width);
+                
+                // Для мобильных устройств увеличиваем масштаб
+                if (window.innerWidth <= 768) {
+                    optimalScale *= 2; // Увеличиваем в 2 раза для мобильных
+                }
+                
+                // Учитываем pixel ratio для лучшей четкости
+                optimalScale *= pixelRatio;
+                
+                return optimalScale;
+            }
 
             // Функция открытия PDF
             function openPDF(url) {
@@ -293,9 +325,18 @@
 
                 // Загружаем PDF
                 const loadingTask = pdfjsLib.getDocument(url);
-                loadingTask.promise.then(pdf => {
+                loadingTask.promise.then(async pdf => {
                     pdfDoc = pdf;
                     document.querySelector('.total-pages').textContent = pdf.numPages;
+                    
+                    // Получаем первую страницу для расчета оптимального масштаба
+                    const firstPage = await pdf.getPage(1);
+                    defaultScale = calculateOptimalScale(firstPage);
+                    scale = defaultScale;
+                    
+                    // Обновляем отображение масштаба
+                    document.querySelector('.zoom-level').textContent = `${Math.round(scale * 100)}%`;
+                    
                     renderAllPages();  // Рендерим все страницы сразу
                     loading.classList.remove('active');
                 }).catch(error => {
@@ -315,10 +356,21 @@
                     for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
                         const page = await pdfDoc.getPage(pageNum);
                         const viewport = page.getViewport({ scale });
+                        
+                        // Создаем canvas с учетом pixel ratio для четкости
+                        const pixelRatio = window.devicePixelRatio || 1;
                         const canvas = document.createElement('canvas');
                         const context = canvas.getContext('2d');
-                        canvas.height = viewport.height;
-                        canvas.width = viewport.width;
+                        
+                        // Устанавливаем размеры canvas с учетом pixel ratio
+                        canvas.style.width = viewport.width + 'px';
+                        canvas.style.height = viewport.height + 'px';
+                        canvas.width = viewport.width * pixelRatio;
+                        canvas.height = viewport.height * pixelRatio;
+                        
+                        // Масштабируем контекст для поддержки Retina дисплеев
+                        context.scale(pixelRatio, pixelRatio);
+                        
                         canvas.className = 'pdf-page';
                         canvas.setAttribute('data-page', pageNum);
 
@@ -381,7 +433,7 @@
             });
 
             document.querySelector('[data-zoom="reset"]').addEventListener('click', () => {
-                scale = 1.0;
+                scale = defaultScale; // Используем оптимальный масштаб вместо 1.0
                 renderAllPages();
             });
 
