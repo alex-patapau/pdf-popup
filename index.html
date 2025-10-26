@@ -47,43 +47,6 @@
             line-height: 1.5;
         }
 
-        /* GLightbox кастомные стили */
-        .glightbox-container {
-            z-index: 9999 !important;
-        }
-
-        .gslide {
-            background: rgba(0, 0, 0, 0.8) !important;
-        }
-
-        .goverlay {
-            background: rgba(0, 0, 0, 0.8) !important;
-            z-index: 9998 !important;
-        }
-
-        .gclose {
-            position: fixed !important;
-            top: 20px !important;
-            right: 20px !important;
-            width: 40px !important;
-            height: 40px !important;
-            background: rgba(255, 255, 255, 0.2) !important;
-            border-radius: 50% !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            color: white !important;
-            font-size: 24px !important;
-            border: none !important;
-            cursor: pointer !important;
-            z-index: 10001 !important;
-            transition: background-color 0.3s !important;
-        }
-
-        .gclose:hover {
-            background: rgba(255, 255, 255, 0.3) !important;
-        }
-
         /* PDF Viewer стили */
         .pdf-viewer {
             width: 95vw;
@@ -130,7 +93,6 @@
             background-color: rgba(0, 0, 0, 0.1);
         }
 
-        /* Десктопные стили - стандартный скролл и центрирование */
         .pdf-content {
             flex: 1;
             overflow: auto;
@@ -298,7 +260,7 @@
             display: none;
         }
 
-        /* Мобильные стили - жесты и трансформация */
+        /* Мобильные стили */
         @media (max-width: 768px) {
             body {
                 touch-action: manipulation;
@@ -342,7 +304,46 @@
             .mobile-zoom-controls {
                 display: flex !important;
             }
+        }
 
+        /* GLightbox кастомные стили */
+        .glightbox-container {
+            z-index: 9999 !important;
+        }
+
+        .gslide {
+            background: rgba(0, 0, 0, 0.8) !important;
+        }
+
+        .goverlay {
+            background: rgba(0, 0, 0, 0.8) !important;
+            z-index: 9998 !important;
+        }
+
+        .gclose {
+            position: fixed !important;
+            top: 20px !important;
+            right: 20px !important;
+            width: 40px !important;
+            height: 40px !important;
+            background: rgba(255, 255, 255, 0.2) !important;
+            border-radius: 50% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            color: white !important;
+            font-size: 24px !important;
+            border: none !important;
+            cursor: pointer !important;
+            z-index: 10001 !important;
+            transition: background-color 0.3s !important;
+        }
+
+        .gclose:hover {
+            background: rgba(255, 255, 255, 0.3) !important;
+        }
+
+        @media (max-width: 768px) {
             .gclose {
                 top: 10px !important;
                 right: 10px !important;
@@ -351,63 +352,19 @@
                 font-size: 20px !important;
             }
         }
-
-        /* Скрываем оригинальный контент при открытом модальном окне */
-        body.glightbox-open {
-            overflow: hidden;
-        }
-
-        .glightbox-open .gcontainer {
-            z-index: 9999 !important;
-        }
     </style>
 </head>
 <body>
     <h1>PDF Просмотрщик</h1>
     <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
-        Открыть PDF v0.10.2
+        Открыть PDF v0.10.3
     </button>
     
     <div class="test-info">
         <p><strong>Протестируйте PDF-просмотрщик!</strong> Функционал проверен на Android-смартфонах и десктопах — работает масштабирование, панорамирование и плавная навигация.</p>
     </div>
 
-    <!-- Скрытый контейнер для PDF просмотрщика -->
-    <div class="glightbox-pdf-container" style="display: none;">
-        <div class="pdf-viewer">
-            <div class="pdf-header">
-                <h2 class="pdf-title">PDF Просмотрщик</h2>
-                <button class="pdf-close">×</button>
-            </div>
-            <div class="pdf-content">
-                <div class="loading">Загрузка PDF...</div>
-                <div class="pdf-pages-container" id="pdf-pages-container"></div>
-                <div class="page-loading" id="page-loading">Загрузка страницы...</div>
-                <div class="render-indicator" id="render-indicator">Рендеринг...</div>
-                <div class="pan-indicator" id="pan-indicator">Панорамирование включено</div>
-            </div>
-            <div class="pdf-controls">
-                <div class="zoom-controls">
-                    <button class="zoom-btn" data-action="zoom-out">-</button>
-                    <span class="zoom-indicator">x1.0</span>
-                    <button class="zoom-btn" data-action="zoom-in">+</button>
-                    <button class="zoom-btn" data-action="reset-zoom">Сброс</button>
-                </div>
-                <div class="page-nav">
-                    <button class="nav-btn" id="prev-page" disabled>Назад</button>
-                    <span class="page-info">Страница <span id="current-page">1</span> из <span id="total-pages">0</span></span>
-                    <button class="nav-btn" id="next-page">Вперед</button>
-                </div>
-            </div>
-            <div class="mobile-zoom-controls">
-                <button class="mobile-zoom-btn" data-action="zoom-in">+</button>
-                <button class="mobile-zoom-btn" data-action="zoom-out">-</button>
-                <button class="mobile-zoom-btn" data-action="reset-zoom">↺</button>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/gh/mcstudios/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         // Устанавливаем путь к worker'у PDF.js
@@ -472,17 +429,60 @@
                     </div>
                 `;
 
-                // Открываем GLightbox с нашим контентом
+                // Создаем временный элемент для GLightbox
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = pdfViewerHTML;
+                const pdfViewerElement = tempDiv.firstElementChild;
+
+                // Добавляем в DOM
+                document.body.appendChild(pdfViewerElement);
+
+                // Открываем GLightbox
                 lightbox.open({
-                    content: pdfViewerHTML,
+                    content: pdfViewerElement,
                     type: 'html'
                 });
 
-                // Даем время для отображения модального окна перед загрузкой PDF
+                // Настраиваем обработчики для закрытия
+                setupCloseHandlers();
+
+                // Загружаем PDF после открытия модального окна
                 setTimeout(() => {
                     loadPdf(pdfUrl);
                 }, 100);
             }
+
+            function setupCloseHandlers() {
+                // Кнопка закрытия в заголовке
+                const closeBtn = document.querySelector('.pdf-close');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', () => {
+                        closePdfViewer();
+                    });
+                }
+            }
+
+            function closePdfViewer() {
+                lightbox.close();
+                cleanupPdfViewer();
+                
+                // Удаляем элемент из DOM
+                const pdfViewer = document.querySelector('.pdf-viewer');
+                if (pdfViewer && pdfViewer.parentNode) {
+                    pdfViewer.parentNode.removeChild(pdfViewer);
+                }
+            }
+
+            // Обработчик закрытия GLightbox
+            document.addEventListener('glightbox:close', () => {
+                cleanupPdfViewer();
+                
+                // Удаляем элемент из DOM
+                const pdfViewer = document.querySelector('.pdf-viewer');
+                if (pdfViewer && pdfViewer.parentNode) {
+                    pdfViewer.parentNode.removeChild(pdfViewer);
+                }
+            });
 
             // Переменные для управления PDF
             let pdfDoc = null;
@@ -558,7 +558,10 @@
                     console.log('PDF загружен, всего страниц:', pdfDoc.numPages);
                     
                     document.getElementById('total-pages').textContent = pdfDoc.numPages;
-                    document.querySelector('.loading').style.display = 'none';
+                    const loadingElement = document.querySelector('.loading');
+                    if (loadingElement) {
+                        loadingElement.style.display = 'none';
+                    }
                     
                     // Предзагружаем размеры всех страниц для плейсхолдеров
                     await preloadPageSizes();
@@ -582,8 +585,10 @@
                     
                 } catch (error) {
                     console.error('Ошибка загрузки PDF:', error);
-                    document.querySelector('.loading').innerHTML = 
-                        '<div class="error">Ошибка загрузки PDF. Проверьте консоль для подробностей.</div>';
+                    const loadingElement = document.querySelector('.loading');
+                    if (loadingElement) {
+                        loadingElement.innerHTML = '<div class="error">Ошибка загрузки PDF. Проверьте консоль для подробностей.</div>';
+                    }
                 }
             }
 
@@ -612,6 +617,8 @@
 
             function createPageContainers() {
                 const container = document.getElementById('pdf-pages-container');
+                if (!container) return;
+                
                 container.innerHTML = '';
                 
                 for (let i = 1; i <= pdfDoc.numPages; i++) {
@@ -753,6 +760,8 @@
                     }
                     
                     const canvas = document.querySelector(`#page-${pageNum} canvas`);
+                    if (!canvas) return;
+                    
                     const ctx = canvas.getContext('2d');
                     
                     // Очищаем canvas перед рендерингом
@@ -800,12 +809,17 @@
 
             function showRenderIndicator(pageNum) {
                 const indicator = document.getElementById('render-indicator');
-                indicator.textContent = `Рендеринг страницы ${pageNum}...`;
-                indicator.style.display = 'block';
+                if (indicator) {
+                    indicator.textContent = `Рендеринг страницы ${pageNum}...`;
+                    indicator.style.display = 'block';
+                }
             }
 
             function hideRenderIndicator() {
-                document.getElementById('render-indicator').style.display = 'none';
+                const indicator = document.getElementById('render-indicator');
+                if (indicator) {
+                    indicator.style.display = 'none';
+                }
             }
 
             // Функция для перерисовки страницы с проверкой масштаба
@@ -842,33 +856,34 @@
 
             function showPageLoading(pageNum) {
                 const loadingEl = document.getElementById('page-loading');
-                loadingEl.textContent = `Загрузка страницы ${pageNum}...`;
-                loadingEl.style.display = 'block';
+                if (loadingEl) {
+                    loadingEl.textContent = `Загрузка страницы ${pageNum}...`;
+                    loadingEl.style.display = 'block';
+                }
             }
 
             function hidePageLoading() {
-                document.getElementById('page-loading').style.display = 'none';
+                const loadingEl = document.getElementById('page-loading');
+                if (loadingEl) {
+                    loadingEl.style.display = 'none';
+                }
             }
 
             function updateNavigation() {
                 if (!pdfDoc) return;
                 
-                document.getElementById('current-page').textContent = currentPage;
-                document.getElementById('total-pages').textContent = pdfDoc.numPages;
-                document.getElementById('prev-page').disabled = currentPage <= 1;
-                document.getElementById('next-page').disabled = currentPage >= pdfDoc.numPages;
+                const currentPageEl = document.getElementById('current-page');
+                const totalPagesEl = document.getElementById('total-pages');
+                const prevPageBtn = document.getElementById('prev-page');
+                const nextPageBtn = document.getElementById('next-page');
+                
+                if (currentPageEl) currentPageEl.textContent = currentPage;
+                if (totalPagesEl) totalPagesEl.textContent = pdfDoc.numPages;
+                if (prevPageBtn) prevPageBtn.disabled = currentPage <= 1;
+                if (nextPageBtn) nextPageBtn.disabled = currentPage >= pdfDoc.numPages;
             }
 
             function setupEventHandlers() {
-                // Кнопка закрытия
-                const closeBtn = document.querySelector('.pdf-close');
-                if (closeBtn) {
-                    closeBtn.addEventListener('click', () => {
-                        lightbox.close();
-                        cleanupPdfViewer();
-                    });
-                }
-
                 // Навигация по кнопкам
                 const prevPageBtn = document.getElementById('prev-page');
                 const nextPageBtn = document.getElementById('next-page');
@@ -1045,7 +1060,7 @@
                 return Math.sqrt(dx * dx + dy * dy);
             }
 
-            // Обновление приоритеты рендеринга на основе видимости
+            // Обновление приоритетов рендеринга на основе видимости
             function updateRenderPriorities() {
                 const visiblePages = getVisiblePages();
                 
