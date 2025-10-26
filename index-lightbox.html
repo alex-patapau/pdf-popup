@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Viewer с Lightbox</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .open-pdf-btn {
+            background-color: #4a6ee0;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        .open-pdf-btn:hover {
+            background-color: #3a5ec0;
+        }
+
+        /* Стили для лайтбокса PDF */
+        .pdf-viewer {
+            display: none; /* Скрыт по умолчанию */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 9999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .pdf-viewer.active {
+            display: block;
+            opacity: 1;
+        }
+
+        .pdf-viewer-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            height: 90%;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .pdf-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: #f0f0f0;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .pdf-title {
+            font-weight: bold;
+            color: #333;
+            margin: 0;
+        }
+
+        .pdf-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #555;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+
+        .pdf-close:hover {
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+
+        .pdf-content {
+            flex: 1;
+            overflow: auto;
+            position: relative;
+            padding: 20px;
+            background: #f8f8f8;
+        }
+
+        .pdf-pages-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .pdf-page {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+            max-width: 100%;
+            height: auto;
+        }
+
+        .pdf-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: #f0f0f0;
+            border-top: 1px solid #ddd;
+        }
+
+        /* Анимации для лайтбокса */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from { 
+                transform: translate(-50%, -45%);
+                opacity: 0;
+            }
+            to { 
+                transform: translate(-50%, -50%);
+                opacity: 1;
+            }
+        }
+
+        .pdf-viewer.active .pdf-viewer-content {
+            animation: slideIn 0.3s ease forwards;
+        }
+
+        /* Мобильные стили */
+        @media (max-width: 768px) {
+            .pdf-viewer-content {
+                width: 95%;
+                height: 95%;
+            }
+
+            .pdf-controls {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .pdf-content {
+                padding: 10px;
+            }
+        }
+
+        /* Стили для навигации */
+        .nav-btn {
+            background-color: #4a6ee0;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .nav-btn:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
+        }
+
+        .nav-btn:hover:not(:disabled) {
+            background-color: #3a5ec0;
+        }
+
+        .page-info {
+            font-size: 14px;
+            color: #555;
+        }
+
+        /* Стили для зума */
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .zoom-btn {
+            background: none;
+            border: 1px solid #ddd;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .zoom-btn:hover {
+            background-color: #e9e9e9;
+        }
+
+        /* Индикаторы загрузки */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 15px 25px;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            font-size: 14px;
+            display: none;
+        }
+
+        .loading.active {
+            display: block;
+            animation: fadeIn 0.2s ease;
+        }
+    </style>
+</head>
+<body>
+    <h1>PDF Просмотрщик с Lightbox</h1>
+    <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
+        Открыть PDF
+    </button>
+
+    <div class="pdf-viewer">
+        <div class="pdf-viewer-content">
+            <div class="pdf-header">
+                <h2 class="pdf-title">PDF Документ</h2>
+                <button class="pdf-close">&times;</button>
+            </div>
+            <div class="pdf-content">
+                <div class="loading">Загрузка PDF...</div>
+                <div class="pdf-pages-container"></div>
+            </div>
+            <div class="pdf-controls">
+                <div class="zoom-controls">
+                    <button class="zoom-btn" data-zoom="out">−</button>
+                    <span class="zoom-level">100%</span>
+                    <button class="zoom-btn" data-zoom="in">+</button>
+                    <button class="zoom-btn" data-zoom="reset">Сброс</button>
+                </div>
+                <div class="navigation">
+                    <button class="nav-btn" data-nav="prev" disabled>← Назад</button>
+                    <span class="page-info">Страница <span class="current-page">1</span> из <span class="total-pages">?</span></span>
+                    <button class="nav-btn" data-nav="next">Вперёд →</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/glightbox/dist/js/glightbox.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Инициализация PDF.js
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const viewer = document.querySelector('.pdf-viewer');
+            const pagesContainer = document.querySelector('.pdf-pages-container');
+            const loading = document.querySelector('.loading');
+            let pdfDoc = null;
+            let currentPage = 1;
+            let scale = 1.0;
+
+            // Функция открытия PDF
+            function openPDF(url) {
+                viewer.classList.add('active');
+                loading.classList.add('active');
+
+                // Загружаем PDF
+                const loadingTask = pdfjsLib.getDocument(url);
+                loadingTask.promise.then(pdf => {
+                    pdfDoc = pdf;
+                    document.querySelector('.total-pages').textContent = pdf.numPages;
+                    renderPage(currentPage);
+                    loading.classList.remove('active');
+                }).catch(error => {
+                    console.error('Ошибка при загрузке PDF:', error);
+                    loading.textContent = 'Ошибка загрузки PDF';
+                });
+            }
+
+            // Рендеринг страницы
+            async function renderPage(num) {
+                loading.classList.add('active');
+                try {
+                    const page = await pdfDoc.getPage(num);
+                    const viewport = page.getViewport({ scale });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    canvas.className = 'pdf-page';
+
+                    // Очищаем контейнер
+                    pagesContainer.innerHTML = '';
+                    
+                    const renderContext = {
+                        canvasContext: context,
+                        viewport: viewport
+                    };
+
+                    await page.render(renderContext).promise;
+                    pagesContainer.appendChild(canvas);
+
+                    // Обновляем UI
+                    document.querySelector('.current-page').textContent = num;
+                    document.querySelector('[data-nav="prev"]').disabled = num <= 1;
+                    document.querySelector('[data-nav="next"]').disabled = num >= pdfDoc.numPages;
+                    document.querySelector('.zoom-level').textContent = `${Math.round(scale * 100)}%`;
+                } catch (error) {
+                    console.error('Ошибка при рендеринге страницы:', error);
+                } finally {
+                    loading.classList.remove('active');
+                }
+            }
+
+            // Обработчики событий для навигации
+            document.querySelector('[data-nav="prev"]').addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderPage(currentPage);
+                }
+            });
+
+            document.querySelector('[data-nav="next"]').addEventListener('click', () => {
+                if (pdfDoc && currentPage < pdfDoc.numPages) {
+                    currentPage++;
+                    renderPage(currentPage);
+                }
+            });
+
+            // Обработчики для зума
+            document.querySelector('[data-zoom="in"]').addEventListener('click', () => {
+                scale = Math.min(scale + 0.25, 3.0);
+                renderPage(currentPage);
+            });
+
+            document.querySelector('[data-zoom="out"]').addEventListener('click', () => {
+                scale = Math.max(scale - 0.25, 0.5);
+                renderPage(currentPage);
+            });
+
+            document.querySelector('[data-zoom="reset"]').addEventListener('click', () => {
+                scale = 1.0;
+                renderPage(currentPage);
+            });
+
+            // Закрытие просмотрщика
+            document.querySelector('.pdf-close').addEventListener('click', () => {
+                viewer.classList.remove('active');
+                pdfDoc = null;
+                currentPage = 1;
+                scale = 1.0;
+                pagesContainer.innerHTML = '';
+            });
+
+            // Открытие PDF по клику на кнопку
+            document.querySelector('.open-pdf-btn').addEventListener('click', function() {
+                const pdfUrl = this.getAttribute('data-pdf-url');
+                openPDF(pdfUrl);
+            });
+
+            // Обработка клавиш
+            document.addEventListener('keydown', (e) => {
+                if (!viewer.classList.contains('active')) return;
+
+                switch(e.key) {
+                    case 'Escape':
+                        viewer.classList.remove('active');
+                        break;
+                    case 'ArrowLeft':
+                        if (currentPage > 1) {
+                            currentPage--;
+                            renderPage(currentPage);
+                        }
+                        break;
+                    case 'ArrowRight':
+                        if (pdfDoc && currentPage < pdfDoc.numPages) {
+                            currentPage++;
+                            renderPage(currentPage);
+                        }
+                        break;
+                }
+            });
+
+            // Обработка жестов для мобильных устройств
+            let touchStartX = 0;
+            let touchStartY = 0;
+
+            pagesContainer.addEventListener('touchstart', (e) => {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            });
+
+            pagesContainer.addEventListener('touchend', (e) => {
+                const touchEndX = e.changedTouches[0].clientX;
+                const touchEndY = e.changedTouches[0].clientY;
+                const deltaX = touchEndX - touchStartX;
+                const deltaY = touchEndY - touchStartY;
+
+                // Определяем, был ли это горизонтальный свайп
+                if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+                    if (deltaX > 0 && currentPage > 1) {
+                        currentPage--;
+                        renderPage(currentPage);
+                    } else if (deltaX < 0 && pdfDoc && currentPage < pdfDoc.numPages) {
+                        currentPage++;
+                        renderPage(currentPage);
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
