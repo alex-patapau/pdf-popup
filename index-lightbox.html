@@ -6,6 +6,24 @@
     <title>PDF Viewer с Lightbox</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/glightbox/dist/css/glightbox.min.css">
     <style>
+        /*
+         * ИСПРАВЛЕНИЯ ОТОБРАЖЕНИЯ PDF-ВЬЮЕРА:
+         * 
+         * Проблема: При открытии документа было видно только 1/4 окна, правый нижний угол 
+         * находился в центре экрана из-за неправильного позиционирования.
+         * 
+         * Исправления:
+         * 1. Заменены проценты (%) на vw/vh единицы для размеров окна, что обеспечивает
+         *    корректное позиционирование относительно viewport
+         * 2. Удален конфликтующий transform: translateY(0) из .pdf-viewer-content
+         * 3. Исправлена анимация: заменен translate(-50%, -50%) на scale для совместимости
+         *    с flexbox центрированием
+         * 4. Добавлены max-width и max-height ограничения для предотвращения выхода
+         *    окна за границы экрана
+         * 5. Улучшено позиционирование canvas элементов PDF (центрирование, overflow)
+         * 6. Адаптивность для мобильных устройств: 98vw/98vh вместо 90vw/90vh
+         * 7. Добавлен min-height: 0 для flex-контейнера с overflow
+         */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -29,6 +47,7 @@
             transition: background-color 0.3s;
         }
         /* Overlay viewer - hidden by default, shown when .active is added */
+        /* ИСПРАВЛЕНО: Правильное центрирование контейнера через flexbox */
         .pdf-viewer {
             position: fixed;
             inset: 0;
@@ -37,23 +56,37 @@
             justify-content: center;
             background: rgba(0, 0, 0, 0.6);
             z-index: 9999;
+            /* Убеждаемся, что overlay занимает весь экран */
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
         }
 
         .pdf-viewer.active {
             display: flex;
         }
 
+        /* ИСПРАВЛЕНО: Правильное позиционирование и размеры контента */
+        /* Убран transform: translateY(0) который конфликтовал с центрированием */
         .pdf-viewer-content {
             position: relative;
-            width: 90%;
-            height: 90%;
+            /* ИСПРАВЛЕНО: Используем max-width и max-height вместо фиксированных размеров */
+            /* Это позволяет окну адаптироваться, но не выходить за границы экрана */
+            width: 90vw; /* 90% от ширины viewport */
+            height: 90vh; /* 90% от высоты viewport */
+            max-width: 90vw; /* Ограничиваем максимальную ширину */
+            max-height: 90vh; /* Ограничиваем максимальную высоту */
+            /* ИСПРАВЛЕНО: box-sizing гарантирует, что padding/border включены в размеры */
+            box-sizing: border-box;
             background: white;
             border-radius: 8px;
             overflow: hidden;
             display: flex;
             flex-direction: column;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            transform: translateY(0); /* keep content positioning stable inside overlay */
+            /* ИСПРАВЛЕНО: Убрали transform который нарушал центрирование */
+            /* Контейнер центрируется через flexbox родителя */
         }
 
         .pdf-header {
@@ -90,14 +123,19 @@
             background-color: rgba(0, 0, 0, 0.1);
         }
 
+        /* ИСПРАВЛЕНО: Правильное позиционирование контейнера PDF-контента */
         .pdf-content {
             flex: 1;
             overflow-y: auto;
+            overflow-x: auto; /* ИСПРАВЛЕНО: Добавлен горизонтальный скролл для широких PDF */
             position: relative;
             padding: 20px;
             background: #f8f8f8;
+            /* ИСПРАВЛЕНО: Убеждаемся, что контент занимает доступное пространство */
+            min-height: 0; /* Важно для flex-контейнеров с overflow */
         }
 
+        /* ИСПРАВЛЕНО: Правильное позиционирование контейнера страниц PDF */
         .pdf-pages-container {
             display: flex;
             flex-direction: column;
@@ -105,14 +143,21 @@
             gap: 20px;
             padding: 20px;
             max-width: 100%;
+            /* ИСПРАВЛЕНО: Убеждаемся, что контейнер не выходит за границы */
+            box-sizing: border-box;
+            width: 100%;
         }
 
+        /* ИСПРАВЛЕНО: Правильное позиционирование canvas элементов PDF */
         .pdf-page {
             background: white;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             border-radius: 4px;
             max-width: 100%;
             height: auto;
+            /* ИСПРАВЛЕНО: Убеждаемся, что canvas не выходит за границы контейнера */
+            display: block;
+            margin: 0 auto; /* Центрируем canvas внутри контейнера */
         }
 
         .pdf-controls {
@@ -125,31 +170,40 @@
         }
 
         /* Анимации для лайтбокса */
+        /* ИСПРАВЛЕНО: Анимация fadeIn для overlay */
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
         }
 
-        @keyframes slideIn {
+        /* ИСПРАВЛЕНО: Анимация slideInScale для контента, совместимая с flexbox центрированием */
+        /* Используем scale и opacity вместо translate, так как центрирование через flexbox */
+        @keyframes slideInScale {
             from { 
-                transform: translate(-50%, -45%);
+                transform: scale(0.9);
                 opacity: 0;
             }
             to { 
-                transform: translate(-50%, -50%);
+                transform: scale(1);
                 opacity: 1;
             }
         }
 
+        /* ИСПРАВЛЕНО: Применяем анимацию которая не конфликтует с flexbox центрированием */
         .pdf-viewer.active .pdf-viewer-content {
-            animation: slideIn 0.3s ease forwards;
+            animation: slideInScale 0.3s ease forwards;
         }
 
         /* Мобильные стили */
+        /* ИСПРАВЛЕНО: Адаптивные размеры для мобильных устройств */
         @media (max-width: 768px) {
             .pdf-viewer-content {
-                width: 98%;
-                height: 98%;
+                /* ИСПРАВЛЕНО: Используем vw/vh для мобильных, чтобы окно занимало почти весь экран */
+                width: 98vw; /* 98% от ширины viewport на мобильных */
+                height: 98vh; /* 98% от высоты viewport на мобильных */
+                max-width: 98vw; /* Ограничиваем максимальную ширину */
+                max-height: 98vh; /* Ограничиваем максимальную высоту */
+                /* Гарантируем, что окно не выходит за границы экрана */
             }
 
             .pdf-controls {
@@ -240,7 +294,7 @@
 <body>
     <h1>PDF Просмотрщик с Lightbox</h1>
     <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
-        Открыть PDF v0.10.10
+        Открыть PDF v0.10.11
     </button>
 
     <div class="pdf-viewer">
