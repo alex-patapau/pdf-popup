@@ -9,20 +9,32 @@
         /*
          * ИСПРАВЛЕНИЯ ОТОБРАЖЕНИЯ PDF-ВЬЮЕРА:
          * 
-         * Проблема: При открытии документа было видно только 1/4 окна, правый нижний угол 
+         * Проблема 1: При открытии документа было видно только 1/4 окна, правый нижний угол 
          * находился в центре экрана из-за неправильного позиционирования.
          * 
-         * Исправления:
-         * 1. Заменены проценты (%) на vw/vh единицы для размеров окна, что обеспечивает
-         *    корректное позиционирование относительно viewport
+         * Исправления (проблема 1):
+         * 1. Заменены проценты (%) на vw/vh единицы для размеров окна на десктопе
          * 2. Удален конфликтующий transform: translateY(0) из .pdf-viewer-content
          * 3. Исправлена анимация: заменен translate(-50%, -50%) на scale для совместимости
          *    с flexbox центрированием
          * 4. Добавлены max-width и max-height ограничения для предотвращения выхода
          *    окна за границы экрана
          * 5. Улучшено позиционирование canvas элементов PDF (центрирование, overflow)
-         * 6. Адаптивность для мобильных устройств: 98vw/98vh вместо 90vw/90vh
-         * 7. Добавлен min-height: 0 для flex-контейнера с overflow
+         * 6. Добавлен min-height: 0 для flex-контейнера с overflow
+         * 
+         * Проблема 2: Предзагружалась только первая страница, не было возможности прокрутить
+         * до конца документа. На мобильных устройствах использовались vw/vh (98% экрана),
+         * а не проценты от окна браузера.
+         * 
+         * Исправления (проблема 2):
+         * 7. Изменена логика рендеринга: рендерятся все страницы сразу при загрузке PDF
+         *    для возможности скроллинга через весь документ
+         * 8. На мобильных устройствах размеры изменены с vw/vh на проценты (98%)
+         *    от размера окна браузера (родительского контейнера)
+         * 9. Добавлен обработчик скролла для автоматического обновления текущей страницы
+         *    при прокрутке документа
+         * 10. Обновлены обработчики навигации (кнопки, клавиатура, свайпы) для использования
+         *     скролла к странице вместо перерендеринга всех страниц
          */
         body {
             font-family: Arial, sans-serif;
@@ -198,12 +210,13 @@
         /* ИСПРАВЛЕНО: Адаптивные размеры для мобильных устройств */
         @media (max-width: 768px) {
             .pdf-viewer-content {
-                /* ИСПРАВЛЕНО: Используем vw/vh для мобильных, чтобы окно занимало почти весь экран */
-                width: 98vw; /* 98% от ширины viewport на мобильных */
-                height: 98vh; /* 98% от высоты viewport на мобильных */
-                max-width: 98vw; /* Ограничиваем максимальную ширину */
-                max-height: 98vh; /* Ограничиваем максимальную высоту */
-                /* Гарантируем, что окно не выходит за границы экрана */
+                /* ИСПРАВЛЕНО: Используем проценты от размера окна браузера, а не vw/vh */
+                /* Проценты берутся от родительского контейнера (.pdf-viewer), который занимает 100% экрана */
+                width: 98%; /* 98% от размера окна браузера (от .pdf-viewer) */
+                height: 98%; /* 98% от размера окна браузера (от .pdf-viewer) */
+                max-width: 98%; /* Ограничиваем максимальную ширину */
+                max-height: 98%; /* Ограничиваем максимальную высоту */
+                /* Гарантируем, что окно не выходит за границы окна браузера */
             }
 
             .pdf-controls {
@@ -294,7 +307,7 @@
 <body>
     <h1>PDF Просмотрщик с Lightbox</h1>
     <button class="open-pdf-btn" data-pdf-url="uvvnvdywkmxfnrs6dy2pmbmqgki4ottr.pdf">
-        Открыть PDF v0.10.11
+        Открыть PDF v0.10.12
     </button>
 
     <div class="pdf-viewer">
@@ -347,11 +360,12 @@
                 loadingTask.promise.then(pdf => {
                     pdfDoc = pdf;
                     document.querySelector('.total-pages').textContent = pdf.numPages;
-                    renderCurrentPage(); // Рендерим только текущую страницу
-                    loading.classList.remove('active');
+                    // ИСПРАВЛЕНО: Рендерим все страницы сразу для возможности скроллинга
+                    renderAllPages();
                 }).catch(error => {
                     console.error('Ошибка при загрузке PDF:', error);
                     loading.textContent = 'Ошибка загрузки PDF';
+                    loading.classList.remove('active');
                 });
             }
 
@@ -389,18 +403,42 @@
                 return canvas;
             }
 
-            // Рендер только текущей страницы (вызывается при навигации)
+            // ИСПРАВЛЕНО: Рендер всех страниц PDF для возможности скроллинга
+            async function renderAllPages() {
+                if (!pdfDoc) return;
+                try {
+                    pagesContainer.innerHTML = '';
+                    
+                    // Рендерим все страницы последовательно
+                    for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                        const canvas = await renderPage(pageNum);
+                        if (canvas) {
+                            pagesContainer.appendChild(canvas);
+                        }
+                    }
+                    
+                    updateUI();
+                    // Прокручиваем к текущей странице после рендеринга всех
+                    const currentPageElement = pagesContainer.querySelector(`[data-page="${currentPage}"]`);
+                    if (currentPageElement) {
+                        currentPageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                } catch (err) {
+                    console.error('Ошибка при рендеринге страниц:', err);
+                } finally {
+                    loading.classList.remove('active');
+                }
+            }
+
+            // Рендер только текущей страницы (используется при изменении масштаба)
             async function renderCurrentPage() {
                 if (!pdfDoc) return;
                 loading.classList.add('active');
                 try {
-                    const canvas = await renderPage(currentPage);
-                    // Показываем только текущую страницу
-                    pagesContainer.innerHTML = '';
-                    if (canvas) pagesContainer.appendChild(canvas);
-                    updateUI();
+                    // При изменении масштаба перерендериваем все страницы
+                    await renderAllPages();
                 } catch (err) {
-                    console.error('Ошибка при рендеринге текущей страницы:', err);
+                    console.error('Ошибка при рендеринге страниц:', err);
                 } finally {
                     loading.classList.remove('active');
                 }
@@ -415,25 +453,76 @@
                 document.querySelector('[data-nav="next"]').disabled = currentPage >= pdfDoc.numPages;
                 document.querySelector('.zoom-level').textContent = `${Math.round(scale * 100)}%`;
 
-                // Прокручиваем к текущей странице
+                // ИСПРАВЛЕНО: Прокручиваем к текущей странице только если она существует
                 const currentPageElement = pagesContainer.querySelector(`[data-page="${currentPage}"]`);
                 if (currentPageElement) {
                     currentPageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             }
+            
+            // ИСПРАВЛЕНО: Обновление текущей страницы на основе позиции скролла
+            function updateCurrentPageFromScroll() {
+                if (!pdfDoc) return;
+                const container = document.querySelector('.pdf-content');
+                const scrollTop = container.scrollTop;
+                const containerHeight = container.clientHeight;
+                
+                // Находим страницу, которая находится в центре видимой области
+                let bestPage = 1;
+                let bestDistance = Infinity;
+                
+                for (let pageNum = 1; pageNum <= pdfDoc.numPages; pageNum++) {
+                    const pageElement = pagesContainer.querySelector(`[data-page="${pageNum}"]`);
+                    if (pageElement) {
+                        const pageTop = pageElement.offsetTop - pagesContainer.offsetTop;
+                        const pageHeight = pageElement.offsetHeight;
+                        const pageCenter = pageTop + pageHeight / 2;
+                        const viewportCenter = scrollTop + containerHeight / 2;
+                        const distance = Math.abs(pageCenter - viewportCenter);
+                        
+                        if (distance < bestDistance) {
+                            bestDistance = distance;
+                            bestPage = pageNum;
+                        }
+                    }
+                }
+                
+                if (bestPage !== currentPage) {
+                    currentPage = bestPage;
+                    updateUI();
+                }
+            }
+
+            // ИСПРАВЛЕНО: Обработчик скролла для обновления текущей страницы
+            const pdfContent = document.querySelector('.pdf-content');
+            let scrollTimeout;
+            pdfContent.addEventListener('scroll', () => {
+                clearTimeout(scrollTimeout);
+                scrollTimeout = setTimeout(() => {
+                    updateCurrentPageFromScroll();
+                }, 100); // Debounce для производительности
+            });
 
             // Обработчики событий для навигации
             document.querySelector('[data-nav="prev"]').addEventListener('click', () => {
                 if (currentPage > 1) {
                     currentPage--;
-                    renderCurrentPage();
+                    const pageElement = pagesContainer.querySelector(`[data-page="${currentPage}"]`);
+                    if (pageElement) {
+                        pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                    updateUI();
                 }
             });
 
             document.querySelector('[data-nav="next"]').addEventListener('click', () => {
                 if (pdfDoc && currentPage < pdfDoc.numPages) {
                     currentPage++;
-                    renderCurrentPage();
+                    const pageElement = pagesContainer.querySelector(`[data-page="${currentPage}"]`);
+                    if (pageElement) {
+                        pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                    updateUI();
                 }
             });
 
@@ -486,13 +575,21 @@
                     case 'ArrowLeft':
                         if (currentPage > 1) {
                             currentPage--;
-                            renderCurrentPage();
+                            const pageElement = pagesContainer.querySelector(`[data-page="${currentPage}"]`);
+                            if (pageElement) {
+                                pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                            updateUI();
                         }
                         break;
                     case 'ArrowRight':
                         if (pdfDoc && currentPage < pdfDoc.numPages) {
                             currentPage++;
-                            renderCurrentPage();
+                            const pageElement = pagesContainer.querySelector(`[data-page="${currentPage}"]`);
+                            if (pageElement) {
+                                pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                            updateUI();
                         }
                         break;
                 }
@@ -515,12 +612,20 @@
 
                 // Определяем, был ли это горизонтальный свайп
                 if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
-                        if (deltaX > 0 && currentPage > 1) {
+                    if (deltaX > 0 && currentPage > 1) {
                         currentPage--;
-                        renderCurrentPage();
+                        const pageElement = pagesContainer.querySelector(`[data-page="${currentPage}"]`);
+                        if (pageElement) {
+                            pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                        updateUI();
                     } else if (deltaX < 0 && pdfDoc && currentPage < pdfDoc.numPages) {
                         currentPage++;
-                        renderCurrentPage();
+                        const pageElement = pagesContainer.querySelector(`[data-page="${currentPage}"]`);
+                        if (pageElement) {
+                            pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                        updateUI();
                     }
                 }
             });
