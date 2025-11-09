@@ -1,5 +1,8 @@
-// Инициализация PDF.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+// Импорт PDF.js из локальных файлов
+import * as pdfjsLib from '../assets/pdf.min.mjs';
+
+// Инициализация PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('../assets/pdf.worker.min.mjs', import.meta.url).toString();
 
 document.addEventListener('DOMContentLoaded', function() {
     const viewer = document.querySelector('.pdf-viewer');
