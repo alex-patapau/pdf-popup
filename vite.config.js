@@ -36,6 +36,15 @@ export default defineConfig({
   assetsInclude: ['**/*.pdf', '**/*.mjs'],
   optimizeDeps: {
     exclude: ['../assets/pdf.min.mjs']
+  },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        additionalData: `
+          @import "./css/styles.scss";
+        `
+      }
+    }
   }
 });
 
